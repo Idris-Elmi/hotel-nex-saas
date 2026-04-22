@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 220" role="img" aria-label="Bole Ambassador Hotel logo">
+  <rect width="220" height="220" fill="none"/>
+  <g transform="translate(18 20)">
+    <path d="M78 8C41 8 10 39 10 76c0 37 31 68 68 68 12 0 24-3 34-9-30 2-57-22-57-53 0-31 27-55 57-53-10-6-22-9-34-9z" fill="#d69212"/>
+    <path d="M108 14c-33 0-60 27-60 60 0 33 27 60 60 60 10 0 20-3 29-7-26 1-47-19-47-45 0-26 21-46 47-45-9-5-19-8-29-8z" fill="#d69212" opacity="0.92"/>
+    <path d="M136 22c-28 0-50 22-50 50s22 50 50 50c9 0 17-2 25-6-21 1-39-15-39-36s18-37 39-36c-8-5-16-8-25-8z" fill="#d69212" opacity="0.84"/>
+    <path d="M162 33c-21 0-38 17-38 38s17 38 38 38c7 0 14-2 20-5-16 1-29-11-29-28s13-29 29-28c-6-3-13-5-20-5z" fill="#d69212" opacity="0.78"/>
+    <text x="0" y="166" font-family="Segoe UI, Arial, sans-serif" font-size="36" font-weight="700" fill="#d69212">Ambassador</text>
+    <text x="46" y="194" font-family="Segoe UI, Arial, sans-serif" font-size="30" font-weight="700" fill="#d69212" letter-spacing="2">HOTEL</text>
+    <text x="64" y="214" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700" fill="#d69212" letter-spacing="4">★ ★ ★ ★</text>
+  </g>
+</svg>

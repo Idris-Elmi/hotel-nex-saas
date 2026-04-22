@@ -1,36 +1,48 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Hotel SaaS
 
-## Getting Started
+## Local Setup
 
-First, run the development server:
+1. Install dependencies:
+
+```bash
+npm install
+```
+
+2. Create local env file from template:
+
+```bash
+copy .env.example .env.local
+```
+
+3. Update required values in `.env.local`:
+
+- `MONGODB_URI`
+- `JWT_SECRET`
+
+4. Manual payment setup (no online gateway):
+
+- `MANUAL_BANK_NAME`
+- `MANUAL_BANK_ACCOUNT_NAME`
+- `MANUAL_BANK_ACCOUNT_NUMBER`
+- `MANUAL_MOBILE_PROVIDER`
+- `MANUAL_MOBILE_ACCOUNT_NAME`
+- `MANUAL_MOBILE_PHONE`
+
+Customers pay manually and submit a receipt or transaction reference.
+
+5. Start dev server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Manual Payment Workflow
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Customer creates booking in Step 4 payment page.
+2. Customer sees bank transfer and mobile money instructions.
+3. Customer uploads receipt (image/pdf) or enters transaction reference.
+4. Payment is stored as `PENDING`.
+5. Admin reviews payment in `/admin/payments` and approves or rejects.
+6. Booking is confirmed only after payment approval.

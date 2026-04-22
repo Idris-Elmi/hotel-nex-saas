@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" role="img" aria-label="Map location preview">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#e8f0f7"/>
+      <stop offset="100%" stop-color="#f7f3eb"/>
+    </linearGradient>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M48 0H0V48" fill="none" stroke="#d7dde5" stroke-width="1"/>
+    </pattern>
+  </defs>
+
+  <rect width="1200" height="700" fill="url(#bg)"/>
+  <rect width="1200" height="700" fill="url(#grid)" opacity="0.65"/>
+
+  <path d="M-20 110 C220 140, 420 80, 690 120 C920 150, 1120 110, 1220 130" fill="none" stroke="#98b4d4" stroke-width="20" stroke-linecap="round"/>
+  <path d="M-20 460 C210 420, 430 500, 700 460 C930 420, 1090 500, 1220 450" fill="none" stroke="#98b4d4" stroke-width="18" stroke-linecap="round"/>
+
+  <path d="M180 0 L250 700" stroke="#c8cfd8" stroke-width="16"/>
+  <path d="M510 0 L560 700" stroke="#c8cfd8" stroke-width="14"/>
+  <path d="M860 0 L800 700" stroke="#c8cfd8" stroke-width="14"/>
+
+  <g transform="translate(620 320)">
+    <path d="M0 -92 C-52 -92 -95 -50 -95 2 C-95 77 0 180 0 180 C0 180 95 77 95 2 C95 -50 52 -92 0 -92Z" fill="#d69212" stroke="#9f680b" stroke-width="8"/>
+    <circle cx="0" cy="0" r="35" fill="#fff5d8"/>
+    <circle cx="0" cy="0" r="14" fill="#d69212"/>
+  </g>
+
+  <rect x="50" y="30" width="340" height="110" rx="18" fill="#ffffff" stroke="#d8dee7"/>
+  <text x="82" y="78" font-family="Segoe UI, Arial, sans-serif" font-size="30" font-weight="700" fill="#1f2937">Bole Ambassador Hotel</text>
+  <text x="82" y="112" font-family="Segoe UI, Arial, sans-serif" font-size="20" fill="#6b7280">18 Meridian Avenue, Harbor District</text>
+</svg>
