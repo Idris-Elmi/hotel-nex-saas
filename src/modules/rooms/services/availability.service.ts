@@ -1,7 +1,6 @@
 import { addDays } from "date-fns";
-import mongoose from "mongoose";
-import { BookingModel } from "@/models/Booking";
-import { RoomModel } from "@/models/Room";
+import { BookingModel } from "@/models/booking.model";
+import { RoomModel } from "@/models/room.model";
 import { calculateBookingPrice } from "@/modules/rooms/services/pricing.service";
 
 export async function findAvailableRooms(arrivalDate: Date, nights: number, guests: number) {
@@ -13,7 +12,7 @@ export async function findAvailableRooms(arrivalDate: Date, nights: number, gues
     departureDate: { $gt: arrivalDate },
   })
     .select("roomId")
-    .lean();
+    ;
 
   const excludedIds = blockedRoomIds
     .map((booking) => String(booking.roomId ?? ""))
@@ -25,8 +24,8 @@ export async function findAvailableRooms(arrivalDate: Date, nights: number, gues
     capacity: { $gte: guests },
     _id: { $nin: excludedIds },
   })
-    .populate("type")
-    .lean();
+    
+    ;
 
   const priced = await Promise.all(
     rooms.map(async (room) => {

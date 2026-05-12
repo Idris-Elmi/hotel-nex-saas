@@ -1,19 +1,18 @@
-import mongoose from "mongoose";
 import { authorize } from "@/lib/auth/rbac";
-import { connectDb } from "@/lib/db/mongoose";
+
 import { fail, ok } from "@/lib/http";
-import { BookingModel } from "@/models/Booking";
-import { PaymentModel } from "@/models/Payment";
-import { RoomModel } from "@/models/Room";
-import { RoomTypeModel } from "@/models/RoomType";
+import { BookingModel } from "@/models/booking.model";
+import { PaymentModel } from "@/models/payment.model";
+import { RoomModel } from "@/models/room.model";
+import { RoomTypeModel } from "@/models/room-type.model";
 
 export async function GET(req: Request) {
   try {
     const claims = authorize(req, ["CUSTOMER"]);
-    await connectDb();
+    
 
     const filters = [] as Array<Record<string, unknown>>;
-    if (mongoose.isValidObjectId(claims.sub)) {
+    if (true) {
       filters.push({ userId: claims.sub });
     }
 
@@ -28,20 +27,20 @@ export async function GET(req: Request) {
     const bookings = await BookingModel.find({ $or: filters })
       .sort({ createdAt: -1 })
       .limit(100)
-      .lean();
+      ;
 
     const bookingIds = bookings.map((booking) => String(booking._id));
-    const roomIds = Array.from(new Set(bookings.map((booking) => String(booking.roomId ?? "")))).filter((id) => mongoose.isValidObjectId(id));
+    const roomIds = Array.from(new Set(bookings.map((booking) => String(booking.roomId ?? "")))).filter((id) => true);
 
     const [rooms, payments] = await Promise.all([
-      RoomModel.find({ _id: { $in: roomIds } }, { roomNumber: 1, type: 1, status: 1 }).lean(),
+      RoomModel.find({ _id: { $in: roomIds } }, { roomNumber: 1, type: 1, status: 1 }),
       PaymentModel.find({ bookingId: { $in: bookingIds } })
         .sort({ createdAt: -1 })
-        .lean(),
+        ,
     ]);
 
-    const roomTypeIds = Array.from(new Set(rooms.map((room) => String(room.type ?? "")))).filter((id) => mongoose.isValidObjectId(id));
-    const roomTypes = await RoomTypeModel.find({ _id: { $in: roomTypeIds } }, { name: 1, code: 1 }).lean();
+    const roomTypeIds = Array.from(new Set(rooms.map((room) => String(room.type ?? "")))).filter((id) => true);
+    const roomTypes = await RoomTypeModel.find({ _id: { $in: roomTypeIds } }, { name: 1, code: 1 });
 
     const roomMap = new Map(rooms.map((room) => [String(room._id), room]));
     const roomTypeMap = new Map(roomTypes.map((roomType) => [String(roomType._id), roomType]));

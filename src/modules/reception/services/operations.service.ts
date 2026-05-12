@@ -1,7 +1,7 @@
 import { addDays, differenceInCalendarDays, isAfter, startOfDay } from "date-fns";
 import { NotFoundError, ValidationError } from "@/lib/errors";
-import { BookingModel } from "@/models/Booking";
-import { RoomModel } from "@/models/Room";
+import { BookingModel } from "@/models/booking.model";
+import { RoomModel } from "@/models/room.model";
 import { createPendingBooking, extendStay as extendBookingStay } from "@/modules/bookings/services/booking.service";
 import { addBookingPayment, recalculateBookingPaymentStatus } from "@/modules/payments/services/payment.service";
 

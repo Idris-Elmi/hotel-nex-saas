@@ -1,10 +1,9 @@
 import { authorize } from "@/lib/auth/rbac";
-import { connectDb } from "@/lib/db/mongoose";
+
 import { fail, ok } from "@/lib/http";
-import mongoose from "mongoose";
-import { BookingModel } from "@/models/Booking";
-import { RoomModel } from "@/models/Room";
-import { UserModel } from "@/models/User";
+import { BookingModel } from "@/models/booking.model";
+import { RoomModel } from "@/models/room.model";
+import { UserModel } from "@/models/user.model";
 import { createBookingSchema } from "@/lib/validation/booking";
 import { ValidationError } from "@/lib/errors";
 import { createPendingBooking } from "@/modules/bookings/services/booking.service";
@@ -12,49 +11,46 @@ import { createPendingBooking } from "@/modules/bookings/services/booking.servic
 export async function GET(req: Request) {
   try {
     authorize(req, ["ADMIN", "RECEPTIONIST"]);
-    await connectDb();
 
-    const bookings = await BookingModel.find().sort({ createdAt: -1 }).limit(150).lean();
+    const bookings = await BookingModel.find(undefined, { sort: "created_at DESC", limit: 150 });
     const roomIds = Array.from(
       new Set(
         bookings
-          .map((booking) => String(booking.roomId ?? ""))
-          .filter((id) => mongoose.isValidObjectId(id)),
+          .map((booking) => booking.roomId ?? "")
+          .filter((id) => !!id),
       ),
     );
 
     const userIds = Array.from(
       new Set(
         bookings
-          .map((booking) => String(booking.userId ?? ""))
-          .filter((id) => mongoose.isValidObjectId(id)),
+          .map((booking) => booking.userId ?? "")
+          .filter((id) => !!id),
       ),
     );
 
-    const [rooms, users] = await Promise.all([
-      RoomModel.find({ _id: { $in: roomIds } }, { roomNumber: 1, type: 1, status: 1 }).lean(),
-      UserModel.find({ _id: { $in: userIds } }, { name: 1, email: 1, phone: 1, role: 1, identityType: 1, passportDocumentUrl: 1, provider: 1 }).lean(),
-    ]);
+    const rooms = await RoomModel.find(undefined, { populate: true });
+    const userPromises = userIds.length > 0 ? await Promise.all(userIds.map(id => UserModel.findById(id))) : [];
 
-    const roomMap = new Map(rooms.map((room) => [String(room._id), room]));
-    const userMap = new Map(users.map((user) => [String(user._id), user]));
+    const roomMap = new Map(rooms.map((room) => [room.id, room]));
+    const userMap = new Map(userPromises.filter(Boolean).map((user: any) => [user.id, user]));
 
     const detailedBookings = bookings.map((booking) => {
-      const room = roomMap.get(String(booking.roomId ?? ""));
-      const user = userMap.get(String(booking.userId ?? ""));
+      const room = roomMap.get(booking.roomId ?? "");
+      const user = userMap.get(booking.userId ?? "");
 
       return {
         ...booking,
         room: room
           ? {
-              id: String(room._id),
+              id: room.id,
               roomNumber: room.roomNumber,
               status: room.status,
             }
           : null,
         customer: user
           ? {
-              id: String(user._id),
+              id: user.id,
               name: user.name,
               email: user.email,
               phone: user.phone,
@@ -76,7 +72,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     authorize(req, ["ADMIN", "RECEPTIONIST"]);
-    await connectDb();
+    
 
     const parsed = createBookingSchema.safeParse(await req.json());
     if (!parsed.success) {

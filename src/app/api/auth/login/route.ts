@@ -1,4 +1,4 @@
-import { connectDb } from "@/lib/db/mongoose";
+
 import { fail, ok } from "@/lib/http";
 import { ValidationError, AppError } from "@/lib/errors";
 import { loginSchema } from "@/lib/validation/auth";
@@ -8,7 +8,7 @@ import { withAuthCookie } from "@/lib/auth/response-cookie";
 export async function POST(req: Request) {
   try {
     try {
-      await connectDb();
+      
     } catch {
       throw new AppError("Database connection failed. Please check MONGODB_URI and try again.", 503, "database_unavailable");
     }

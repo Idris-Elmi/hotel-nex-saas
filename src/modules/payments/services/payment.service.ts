@@ -1,8 +1,7 @@
-import mongoose from "mongoose";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
-import { BookingModel } from "@/models/Booking";
-import { PaymentModel } from "@/models/Payment";
-import { RoomModel } from "@/models/Room";
+import { BookingModel } from "@/models/booking.model";
+import { PaymentModel } from "@/models/payment.model";
+import { RoomModel } from "@/models/room.model";
 import { syncRoomStatus } from "@/modules/rooms/services/room-status.service";
 import type { PaymentStatus } from "@/models/enums";
 
@@ -42,7 +41,7 @@ export async function recalculateBookingPaymentStatus(bookingId: string, session
     { bookingId: booking._id },
     { amount: 1, status: 1 },
     session ? { session } : undefined,
-  ).lean();
+  );
 
   const { amountPaid, paymentStatus } = calculateBookingPaymentState(booking.totalPrice, payments as Array<{ amount: number; status: PaymentStatus }>);
 
@@ -58,7 +57,7 @@ export async function recalculateBookingPaymentStatus(bookingId: string, session
 }
 
 export async function listBookingPayments(bookingId: string) {
-  return PaymentModel.find({ bookingId }).sort({ createdAt: -1 }).lean();
+  return PaymentModel.find({ bookingId }, { sort: "created_at DESC" });
 }
 
 export async function addBookingPayment(input: {
@@ -115,7 +114,7 @@ export async function addBookingPayment(input: {
 
 export async function listManualPayments(status?: "PENDING" | "APPROVED" | "REJECTED") {
   const query = status ? { status } : { status: { $in: ["PENDING", "APPROVED", "REJECTED"] } };
-  const payments = await PaymentModel.find(query).sort({ createdAt: -1 }).lean();
+  const payments = await PaymentModel.find(query).sort({ createdAt: -1 });
 
   const bookingIds = Array.from(new Set(payments.map((payment) => String(payment.bookingId ?? ""))));
   const bookings = await BookingModel.find({ _id: { $in: bookingIds } }, {
@@ -126,10 +125,10 @@ export async function listManualPayments(status?: "PENDING" | "APPROVED" | "REJE
     departureDate: 1,
     totalPrice: 1,
     status: 1,
-  }).lean();
+  });
 
   const roomIds = Array.from(new Set(bookings.map((booking) => String(booking.roomId ?? ""))));
-  const rooms = await RoomModel.find({ _id: { $in: roomIds } }, { roomNumber: 1 }).lean();
+  const rooms = await RoomModel.find({ _id: { $in: roomIds } }, { roomNumber: 1 });
 
   const bookingMap = new Map(bookings.map((booking) => [String(booking._id), booking]));
   const roomMap = new Map(rooms.map((room) => [String(room._id), room]));
@@ -212,7 +211,7 @@ export async function refundPayment(paymentId: string) {
   await payment.save();
 
   await recalculateBookingPaymentStatus(String(payment.bookingId));
-  const booking = await BookingModel.findById(payment.bookingId).lean();
+  const booking = await BookingModel.findById(payment.bookingId);
   if (booking) {
     await syncRoomStatus(String(booking.roomId));
   }

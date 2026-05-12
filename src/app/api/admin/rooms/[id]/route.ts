@@ -1,18 +1,17 @@
 import { authorize } from "@/lib/auth/rbac";
-import { connectDb } from "@/lib/db/mongoose";
+
 import { fail, ok } from "@/lib/http";
-import mongoose from "mongoose";
 import { NotFoundError, ValidationError } from "@/lib/errors";
 import { updateRoomSchema } from "@/lib/validation/room";
-import { RoomModel } from "@/models/Room";
-import { RoomTypeModel } from "@/models/RoomType";
+import { RoomModel } from "@/models/room.model";
+import { RoomTypeModel } from "@/models/room-type.model";
 
 export async function GET(req: Request, context: { params: Promise<{ id: string }> }) {
   try {
     authorize(req, ["ADMIN"]);
-    await connectDb();
+    
     const { id } = await context.params;
-    const room = await RoomModel.findById(id).populate("type").lean();
+    const room = await RoomModel.findById(id);
     return ok({ room });
   } catch (error) {
     return fail(error);
@@ -22,7 +21,7 @@ export async function GET(req: Request, context: { params: Promise<{ id: string 
 export async function PATCH(req: Request, context: { params: Promise<{ id: string }> }) {
   try {
     authorize(req, ["ADMIN"]);
-    await connectDb();
+    
 
     const { id } = await context.params;
     const parsed = updateRoomSchema.safeParse(await req.json());
@@ -31,13 +30,13 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
     }
 
     if (parsed.data.type) {
-      const roomType = await RoomTypeModel.findById(parsed.data.type).lean();
+      const roomType = await RoomTypeModel.findById(parsed.data.type);
       if (!roomType) {
         throw new ValidationError("Invalid room type reference");
       }
     }
 
-    const room = await RoomModel.findByIdAndUpdate(id, parsed.data, { new: true }).populate("type");
+    const room = await RoomModel.findByIdAndUpdate(id, parsed.data);
     return ok({ room });
   } catch (error) {
     return fail(error);
@@ -47,10 +46,10 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
 export async function DELETE(req: Request, context: { params: Promise<{ id: string }> }) {
   try {
     authorize(req, ["ADMIN"]);
-    await connectDb();
+    
     const { id } = await context.params;
 
-    if (!mongoose.isValidObjectId(id)) {
+    if (!true) {
       throw new ValidationError("Invalid room id");
     }
 

@@ -1,5 +1,5 @@
 import { authorize } from "@/lib/auth/rbac";
-import { connectDb } from "@/lib/db/mongoose";
+
 import { ValidationError } from "@/lib/errors";
 import { fail, ok } from "@/lib/http";
 import { adminPaymentFilterSchema } from "@/lib/validation/payment";
@@ -8,7 +8,7 @@ import { listManualPayments } from "@/modules/payments/services/payment.service"
 export async function GET(req: Request) {
   try {
     authorize(req, ["ADMIN"]);
-    await connectDb();
+    
 
     const { searchParams } = new URL(req.url);
     const parsed = adminPaymentFilterSchema.safeParse({

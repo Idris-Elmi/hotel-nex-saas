@@ -1,11 +1,11 @@
 import { randomUUID } from "crypto";
-import mongoose from "mongoose";
 import { addDays } from "date-fns";
+import pool from "@/lib/db/postgres";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
-import { BookingModel } from "@/models/Booking";
-import { PaymentModel } from "@/models/Payment";
-import { RoomModel } from "@/models/Room";
-import { UserModel } from "@/models/User";
+import { BookingModel } from "@/models/booking.model";
+import { PaymentModel } from "@/models/payment.model";
+import { RoomModel } from "@/models/room.model";
+import { UserModel } from "@/models/user.model";
 import { calculateBookingPrice } from "@/modules/rooms/services/pricing.service";
 import { syncRoomStatus } from "@/modules/rooms/services/room-status.service";
 import type { BookingStatus } from "@/models/enums";
@@ -15,29 +15,15 @@ function createBookingRef(): string {
   return `BK-${stamp}-${randomUUID().slice(0, 6).toUpperCase()}`;
 }
 
-function isTransactionNotSupportedError(error: unknown): boolean {
-  if (!(error instanceof Error)) {
-    return false;
-  }
-
-  const message = error.message.toLowerCase();
-  return (
-    message.includes("transaction numbers are only allowed") ||
-    message.includes("replica set") ||
-    message.includes("does not support transactions")
-  );
-}
-
-async function ensureNoOverlap(roomId: string, arrivalDate: Date, departureDate: Date, session?: mongoose.ClientSession) {
+async function ensureNoOverlap(roomId: string, arrivalDate: Date, departureDate: Date, client?: any) {
   const conflict = await BookingModel.findOne(
     {
       roomId,
-      status: { $in: ["PENDING", "CONFIRMED", "CHECKED_IN"] },
-      arrivalDate: { $lt: departureDate },
-      departureDate: { $gt: arrivalDate },
+      status: ["PENDING", "CONFIRMED", "CHECKED_IN"],
+      arrivalDate: arrivalDate,
+      departureDate: departureDate,
     },
-    null,
-    { session },
+    client,
   );
 
   if (conflict) {
@@ -53,15 +39,15 @@ async function resolveLinkedUser(input: {
     phone: string;
     identityDocumentUrl: string;
   };
-}) {
+}, client?: any) {
   if (input.userId) {
-    const existingById = await UserModel.findById(input.userId);
+    const existingById = await UserModel.findById(input.userId, client);
     if (existingById) {
       return existingById;
     }
   }
 
-  const existingByEmail = await UserModel.findOne({ email: input.guest.email });
+  const existingByEmail = await UserModel.findOne({ email: input.guest.email }, client);
   if (existingByEmail) {
     return existingByEmail;
   }
@@ -74,8 +60,8 @@ async function upsertGuest(guest: {
   email: string;
   phone: string;
   identityDocumentUrl: string;
-}) {
-  const existing = await UserModel.findOne({ email: guest.email });
+}, client?: any) {
+  const existing = await UserModel.findOne({ email: guest.email }, client);
   if (existing) {
     return existing;
   }
@@ -88,7 +74,7 @@ async function upsertGuest(guest: {
     provider: "local",
     passportDocumentUrl: guest.identityDocumentUrl,
     privacyAcceptedAt: new Date(),
-  });
+  }, client);
 }
 
 export async function createPendingBooking(input: {
@@ -111,7 +97,7 @@ export async function createPendingBooking(input: {
     throw new ValidationError("Privacy agreement must be accepted");
   }
 
-  const existingBooking = await BookingModel.findOne({ "metadata.idempotencyKey": input.idempotencyKey }).lean();
+  const existingBooking = await BookingModel.findOne({ idempotencyKey: input.idempotencyKey });
   if (existingBooking) {
     return existingBooking;
   }
@@ -132,89 +118,65 @@ export async function createPendingBooking(input: {
     pricingPlan: input.pricingPlan,
   });
 
-  async function persistPendingBooking(session?: mongoose.ClientSession) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
     const departureDate = addDays(input.arrivalDate, input.nights);
-    await ensureNoOverlap(input.roomId, input.arrivalDate, departureDate, session);
+    await ensureNoOverlap(input.roomId, input.arrivalDate, departureDate, client);
 
-    const reservedRoom = await RoomModel.findOneAndUpdate(
-      { _id: input.roomId, isActive: true, status: "AVAILABLE" },
-      { status: "RESERVED" },
-      session ? { new: true, session } : { new: true },
-    );
-
+    const reservedRoom = await RoomModel.reserveIfAvailable(input.roomId, client);
     if (!reservedRoom) {
       throw new ConflictError("Room cannot be reserved for this booking");
     }
 
-    const linkedUser = await resolveLinkedUser({ userId: input.userId, guest: input.guest });
-    const guestUser = linkedUser ?? (await upsertGuest(input.guest));
+    const linkedUser = await resolveLinkedUser({ userId: input.userId, guest: input.guest }, client);
+    const guestUser = linkedUser ?? (await upsertGuest(input.guest, client));
 
-    const createPayload = {
+    const booking = await BookingModel.create({
       bookingRef: createBookingRef(),
-      userId: guestUser._id,
-      roomId: room._id,
+      userId: guestUser.id,
+      roomId: room.id,
       status: "PENDING" as const,
       pricingPlan: input.pricingPlan,
-      guests: input.guests,
+      guestsAdults: input.guests.adults,
+      guestsChildren: input.guests.children,
       arrivalDate: input.arrivalDate,
       nights: input.nights,
       departureDate,
       totalPrice: pricing.total,
-      pricing,
-      guestSnapshot: {
-        fullName: input.guest.fullName,
-        email: input.guest.email,
-        phone: input.guest.phone,
-        identityDocumentUrl: input.guest.identityDocumentUrl,
-        privacyAcceptedAt: new Date(),
-      },
-      metadata: {
-        idempotencyKey: input.idempotencyKey,
-      },
-    };
+      pricingPerNight: pricing.perNight,
+      pricingAddons: pricing.addons,
+      pricingSubtotal: pricing.subtotal,
+      pricingTaxes: pricing.taxes,
+      pricingTotal: pricing.total,
+      pricingCurrency: pricing.currency,
+      guestFullName: input.guest.fullName,
+      guestEmail: input.guest.email,
+      guestPhone: input.guest.phone,
+      guestIdentityDocumentUrl: input.guest.identityDocumentUrl,
+      guestPrivacyAcceptedAt: new Date(),
+      idempotencyKey: input.idempotencyKey,
+    }, client);
 
-    if (session) {
-      const [booking] = await BookingModel.create([createPayload], { session });
-      return String(booking._id);
-    }
-
-    const booking = await BookingModel.create(createPayload);
-    return String(booking._id);
-  }
-
-  const session = await mongoose.startSession();
-
-  try {
-    let bookingId = "";
-
-    try {
-      await session.withTransaction(async () => {
-        bookingId = await persistPendingBooking(session);
-      });
-    } catch (error) {
-      if (!isTransactionNotSupportedError(error)) {
-        throw error;
-      }
-
-      bookingId = await persistPendingBooking();
-    }
-
+    await client.query("COMMIT");
     await syncRoomStatus(input.roomId);
-
-    const booking = await BookingModel.findById(bookingId).lean();
     return booking;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
   } finally {
-    await session.endSession();
+    client.release();
   }
 }
 
 export async function getBookingById(id: string) {
-  const booking = await BookingModel.findById(id).lean();
+  const booking = await BookingModel.findById(id);
   if (!booking) {
     throw new NotFoundError("Booking not found");
   }
 
-  const payments = await PaymentModel.find({ bookingId: booking._id }).sort({ createdAt: -1 }).lean();
+  const payments = await PaymentModel.find({ bookingId: id }, { sort: "created_at DESC" });
   return { ...booking, payments };
 }
 
@@ -224,23 +186,24 @@ export async function updateBookingLifecycle(bookingId: string, status: BookingS
     throw new NotFoundError("Booking not found");
   }
 
+  const updateData: any = { status };
+
   if (status === "CHECKED_IN") {
-    booking.checkInAt = new Date();
+    updateData.checkInAt = new Date();
   }
 
   if (status === "CHECKED_OUT") {
-    booking.checkOutAt = new Date();
+    updateData.checkOutAt = new Date();
   }
 
   if (status === "CANCELLED") {
-    booking.cancelledAt = new Date();
+    updateData.cancelledAt = new Date();
   }
 
-  booking.status = status;
-  await booking.save();
-  await syncRoomStatus(String(booking.roomId));
+  const updated = await BookingModel.update(bookingId, updateData);
+  await syncRoomStatus(booking.roomId);
 
-  return booking.toObject();
+  return updated;
 }
 
 export async function extendStay(bookingId: string, extraNights: number) {
@@ -254,39 +217,39 @@ export async function extendStay(bookingId: string, extraNights: number) {
   }
 
   const newDepartureDate = addDays(booking.departureDate, extraNights);
-  await ensureNoOverlap(String(booking.roomId), booking.departureDate, newDepartureDate);
+  await ensureNoOverlap(booking.roomId, booking.departureDate, newDepartureDate);
 
-  const extraCostPerNight = booking.pricing.perNight + Math.round(booking.pricing.perNight * 0.1);
+  const extraCostPerNight = booking.pricingPerNight + Math.round(booking.pricingPerNight * 0.1);
   const extraSubtotal = extraCostPerNight * extraNights;
   const extraTaxes = Math.round(extraSubtotal * 0.1);
   const overstayCharge = extraSubtotal + extraTaxes;
 
-  booking.nights += extraNights;
-  booking.departureDate = newDepartureDate;
-  booking.pricing.subtotal += extraSubtotal;
-  booking.pricing.taxes += extraTaxes;
-  booking.pricing.total += overstayCharge;
-  booking.totalPrice += overstayCharge;
-  booking.metadata = {
-    ...(booking.metadata ?? {}),
-    overstayCharge,
-    extraNights,
-  };
+  const updated = await BookingModel.update(bookingId, {
+    nights: booking.nights + extraNights,
+    departureDate: newDepartureDate,
+    pricingSubtotal: booking.pricingSubtotal + extraSubtotal,
+    pricingTaxes: booking.pricingTaxes + extraTaxes,
+    pricingTotal: booking.pricingTotal + overstayCharge,
+    totalPrice: booking.totalPrice + overstayCharge,
+    metadata: {
+      ...(booking.metadata ?? {}),
+      overstayCharge,
+      extraNights,
+    },
+  });
 
-  await booking.save();
-
-  return booking.toObject();
+  return updated;
 }
 
 export async function deleteBookingWithDetails(bookingId: string) {
-  const booking = await BookingModel.findById(bookingId).lean();
+  const booking = await BookingModel.findById(bookingId);
   if (!booking) {
     throw new NotFoundError("Booking not found");
   }
 
-  await PaymentModel.deleteMany({ bookingId: booking._id });
+  await PaymentModel.deleteMany({ bookingId });
   await BookingModel.findByIdAndDelete(bookingId);
-  await syncRoomStatus(String(booking.roomId));
+  await syncRoomStatus(booking.roomId);
 
   return { deleted: true, bookingId };
 }

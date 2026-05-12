@@ -1,4 +1,4 @@
-import { connectDb } from "@/lib/db/mongoose";
+
 import { fail, ok } from "@/lib/http";
 import { createBookingSchema } from "@/lib/validation/booking";
 import { ValidationError } from "@/lib/errors";
@@ -6,7 +6,7 @@ import { createPendingBooking } from "@/modules/bookings/services/booking.servic
 
 export async function POST(req: Request) {
   try {
-    await connectDb();
+    
 
     const parsed = createBookingSchema.safeParse(await req.json());
     if (!parsed.success) {

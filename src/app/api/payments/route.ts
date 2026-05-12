@@ -1,4 +1,4 @@
-import { connectDb } from "@/lib/db/mongoose";
+
 import { ValidationError } from "@/lib/errors";
 import { fail, ok } from "@/lib/http";
 import { createPaymentSchema, listPaymentsQuerySchema } from "@/lib/validation/payment";
@@ -6,7 +6,7 @@ import { addBookingPayment, listBookingPayments } from "@/modules/payments/servi
 
 export async function GET(req: Request) {
   try {
-    await connectDb();
+    
 
     const { searchParams } = new URL(req.url);
     const parsed = listPaymentsQuerySchema.safeParse({ bookingId: searchParams.get("bookingId") ?? "" });
@@ -23,7 +23,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    await connectDb();
+    
 
     const parsed = createPaymentSchema.safeParse(await req.json());
     if (!parsed.success) {

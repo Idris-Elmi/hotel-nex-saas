@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import { ValidationError } from "@/lib/errors";
 import { signAccessToken, verifyAccessToken } from "@/lib/auth/jwt";
-import { UserModel } from "@/models/User";
+import { UserModel } from "@/models/user.model";
 import type { JwtRole } from "@/lib/auth/jwt";
 
 function normalizeEmail(email: string): string {
@@ -26,34 +26,34 @@ export async function registerUser(input: {
   const email = normalizeEmail(input.email);
   const existing = await UserModel.findOne({ email });
   if (existing) {
-    // If a customer record was pre-created during booking without credentials,
-    // allow the user to complete account setup by setting a password.
     if (input.role === "CUSTOMER" && !existing.passwordHash) {
-      existing.passwordHash = await bcrypt.hash(input.password, 10);
-      existing.name = input.name;
-      existing.phone = input.phone ?? existing.phone;
-      existing.role = "CUSTOMER";
-      existing.provider = "local";
-      existing.providerId = email;
-      existing.passportDocumentUrl = input.passportDocumentUrl ?? existing.passportDocumentUrl ?? "/uploads/ids/placeholder.jpg";
-      existing.privacyAcceptedAt = existing.privacyAcceptedAt ?? new Date();
-      await existing.save();
+      const passwordHash = await bcrypt.hash(input.password, 10);
+      const updated = await UserModel.update(existing.id, {
+        passwordHash,
+        name: input.name,
+        phone: input.phone ?? existing.phone,
+        role: "CUSTOMER",
+        provider: "local",
+        providerId: email,
+        passportDocumentUrl: input.passportDocumentUrl ?? existing.passportDocumentUrl ?? "/uploads/ids/placeholder.jpg",
+        privacyAcceptedAt: existing.privacyAcceptedAt ?? new Date(),
+      });
 
       const token = signAccessToken({
-        sub: String(existing._id),
-        role: coerceRole(existing.role),
-        email: existing.email,
+        sub: updated.id,
+        role: coerceRole(updated.role),
+        email: updated.email,
       });
 
       return {
         accessToken: token,
         user: {
-          id: String(existing._id),
-          name: existing.name,
-          email: existing.email,
-          role: existing.role,
-          phone: existing.phone,
-          passportDocumentUrl: existing.passportDocumentUrl,
+          id: updated.id,
+          name: updated.name,
+          email: updated.email,
+          role: updated.role,
+          phone: updated.phone,
+          passportDocumentUrl: updated.passportDocumentUrl,
         },
       };
     }
@@ -80,7 +80,7 @@ export async function registerUser(input: {
       typeof error === "object" &&
       error !== null &&
       "code" in error &&
-      (error as { code?: number }).code === 11000
+      (error as { code?: string }).code === "23505"
     ) {
       throw new ValidationError("Email is already registered");
     }
@@ -88,7 +88,7 @@ export async function registerUser(input: {
   }
 
   const token = signAccessToken({
-    sub: String(user._id),
+    sub: user.id,
     role: coerceRole(user.role),
     email: user.email,
   });
@@ -96,7 +96,7 @@ export async function registerUser(input: {
   return {
     accessToken: token,
     user: {
-      id: String(user._id),
+      id: user.id,
       name: user.name,
       email: user.email,
       role: user.role,
@@ -124,7 +124,7 @@ export async function loginUser(input: { email: string; password: string }) {
   }
 
   const token = signAccessToken({
-    sub: String(user._id),
+    sub: user.id,
     role: coerceRole(user.role),
     email: user.email,
   });
@@ -132,7 +132,7 @@ export async function loginUser(input: { email: string; password: string }) {
   return {
     accessToken: token,
     user: {
-      id: String(user._id),
+      id: user.id,
       name: user.name,
       email: user.email,
       role: user.role,
@@ -144,7 +144,7 @@ export async function loginUser(input: { email: string; password: string }) {
 
 export async function verifyTokenAndGetUser(token: string) {
   const claims = verifyAccessToken(token);
-  const user = await UserModel.findById(claims.sub).lean();
+  const user = await UserModel.findById(claims.sub);
   if (!user) {
     throw new ValidationError("User not found for token");
   }
@@ -152,7 +152,7 @@ export async function verifyTokenAndGetUser(token: string) {
   return {
     claims,
     user: {
-      id: String(user._id),
+      id: user.id,
       name: user.name,
       email: user.email,
       role: coerceRole(user.role),
