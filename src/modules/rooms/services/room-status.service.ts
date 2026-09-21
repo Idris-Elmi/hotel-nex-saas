@@ -1,8 +1,8 @@
-import { RoomModel } from "@/models/room.model";
+import { RoomModel } from "@/models/Room";
 
 export async function syncRoomStatus(roomId: string): Promise<void> {
-  const BookingModel = (await import("@/models/booking.model")).BookingModel;
-  const room = await RoomModel.findById(roomId);
+  const BookingModel = (await import("@/models/Booking")).BookingModel;
+  const room = await RoomModel.findById(roomId).lean();
 
   if (!room || room.status === "MAINTENANCE") {
     return;

@@ -1,4 +1,4 @@
-
+import { connectDb } from "@/lib/db/mongoose";
 import { fail, ok } from "@/lib/http";
 import { ValidationError } from "@/lib/errors";
 import { customerRegisterSchema } from "@/lib/validation/auth";
@@ -7,7 +7,7 @@ import { withAuthCookie } from "@/lib/auth/response-cookie";
 
 export async function POST(req: Request) {
   try {
-    
+    await connectDb();
 
     const body = await req.json().catch(() => {
       throw new ValidationError("Invalid registration payload");

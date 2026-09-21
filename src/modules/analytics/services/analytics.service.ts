@@ -1,6 +1,6 @@
-import { BookingModel } from "@/models/booking.model";
-import { PaymentModel } from "@/models/payment.model";
-import { RoomModel } from "@/models/room.model";
+import { BookingModel } from "@/models/Booking";
+import { PaymentModel } from "@/models/Payment";
+import { RoomModel } from "@/models/Room";
 import type { AnalyticsDateFilter } from "@/modules/analytics/utils/date-filter";
 
 type RevenuePoint = {

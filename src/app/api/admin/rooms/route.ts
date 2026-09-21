@@ -1,26 +1,27 @@
 import { authorize } from "@/lib/auth/rbac";
-
+import mongoose from "mongoose";
+import { connectDb } from "@/lib/db/mongoose";
 import { fail, ok } from "@/lib/http";
 import { ValidationError } from "@/lib/errors";
 import { createRoomSchema } from "@/lib/validation/room";
-import { RoomModel } from "@/models/room.model";
-import { RoomTypeModel } from "@/models/room-type.model";
+import { RoomModel } from "@/models/Room";
+import { RoomTypeModel } from "@/models/RoomType";
 
 export async function GET(req: Request) {
   try {
     authorize(req, ["ADMIN"]);
-    
+    await connectDb();
 
-    const rooms = await RoomModel.find(undefined, { sort: "room_number ASC" });
+    const rooms = await RoomModel.find().sort({ roomNumber: 1 }).lean();
     const typeIds = Array.from(
       new Set(
         rooms
           .map((room) => String(room.type ?? ""))
-          .filter((typeId) => true),
+          .filter((typeId) => mongoose.isValidObjectId(typeId)),
       ),
     );
 
-    const roomTypes = await RoomTypeModel.find({ _id: { $in: typeIds } });
+    const roomTypes = await RoomTypeModel.find({ _id: { $in: typeIds } }).lean();
     const roomTypeMap = new Map(roomTypes.map((roomType) => [String(roomType._id), roomType]));
 
     const hydratedRooms = rooms.map((room) => ({
@@ -37,7 +38,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     authorize(req, ["ADMIN"]);
-    
+    await connectDb();
 
     const rawBody = await req.json();
     const normalizedRoomNumber = typeof rawBody?.roomNumber === "string"
@@ -54,14 +55,14 @@ export async function POST(req: Request) {
       throw new ValidationError("Invalid room payload", parsed.error.flatten());
     }
 
-    const roomType = await RoomTypeModel.findById(parsed.data.type);
+    const roomType = await RoomTypeModel.findById(parsed.data.type).lean();
     if (!roomType) {
       throw new ValidationError("Invalid room type reference");
     }
 
     const existingRoom = await RoomModel.findOne({ roomNumber: parsed.data.roomNumber })
       .collation({ locale: "en", strength: 2 })
-      ;
+      .lean();
     if (existingRoom) {
       return ok(
         {
@@ -96,7 +97,7 @@ export async function POST(req: Request) {
       ) {
         const conflictingRoom = await RoomModel.findOne({ roomNumber: parsed.data.roomNumber })
           .collation({ locale: "en", strength: 2 })
-          ;
+          .lean();
 
         return ok(
           {

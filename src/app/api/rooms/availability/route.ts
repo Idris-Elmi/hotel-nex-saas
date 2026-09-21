@@ -1,4 +1,4 @@
-
+import { connectDb } from "@/lib/db/mongoose";
 import { fail, ok } from "@/lib/http";
 import { availabilitySchema } from "@/lib/validation/booking";
 import { ValidationError } from "@/lib/errors";
@@ -59,7 +59,7 @@ async function resolveAvailability(input: Record<string, unknown>) {
 
 export async function GET(req: Request) {
   try {
-    
+    await connectDb();
     const { searchParams } = new URL(req.url);
 
     return await resolveAvailability({
@@ -74,7 +74,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    
+    await connectDb();
     const { searchParams } = new URL(req.url);
 
     let body: Record<string, unknown> = {};

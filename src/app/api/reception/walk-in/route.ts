@@ -1,15 +1,16 @@
 import { authorize } from "@/lib/auth/rbac";
-
+import { connectDb } from "@/lib/db/mongoose";
 import { fail, ok } from "@/lib/http";
 import { ValidationError } from "@/lib/errors";
 import { walkInBookingSchema } from "@/lib/validation/reception";
 import { createWalkInBooking } from "@/modules/reception/services/operations.service";
-import { RoomModel } from "@/models/room.model";
+import { isValidObjectId } from "mongoose";
+import { RoomModel } from "@/models/Room";
 
 export async function POST(req: Request) {
   try {
     authorize(req, ["ADMIN", "RECEPTIONIST"]);
-    
+    await connectDb();
 
     const body = await req.json().catch(() => {
       throw new ValidationError("Invalid walk-in booking payload");
@@ -22,7 +23,7 @@ export async function POST(req: Request) {
 
     let resolvedRoomId = parsed.data.roomId;
     if (!isValidObjectId(parsed.data.roomId)) {
-      const room = await RoomModel.findOne({ roomNumber: parsed.data.roomId }).select("_id");
+      const room = await RoomModel.findOne({ roomNumber: parsed.data.roomId }).select("_id").lean();
       if (!room) {
         throw new ValidationError("Invalid room number. Provide an existing room number, for example 101.");
       }

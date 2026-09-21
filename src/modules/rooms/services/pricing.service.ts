@@ -2,7 +2,7 @@ import { addDays, differenceInCalendarDays } from "date-fns";
 import { appConfig } from "@/lib/config";
 import { ValidationError } from "@/lib/errors";
 import type { PricingPlan } from "@/models/enums";
-import { RoomModel } from "@/models/room.model";
+import { RoomModel } from "@/models/Room";
 
 export type PriceResult = {
   perNight: number;
@@ -20,7 +20,7 @@ export async function calculateBookingPrice(input: {
   nights: number;
   pricingPlan: PricingPlan;
 }): Promise<PriceResult> {
-  const room = await RoomModel.findById(input.roomId);
+  const room = await RoomModel.findById(input.roomId).populate("type").lean();
   if (!room || !room.isActive) {
     throw new ValidationError("Selected room does not exist");
   }
