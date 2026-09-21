@@ -9,7 +9,7 @@ function normalizeEmail(email: string): string {
 }
 
 function coerceRole(role: unknown): JwtRole {
-  if (role === "ADMIN" || role === "RECEPTIONIST" || role === "CUSTOMER") {
+  if (role === "OWNER" || role === "ADMIN" || role === "RECEPTIONIST" || role === "CUSTOMER") {
     return role;
   }
   return "CUSTOMER";
@@ -47,14 +47,15 @@ export async function registerUser(input: {
 
       return {
         accessToken: token,
-        user: {
-          id: String(existing._id),
-          name: existing.name,
-          email: existing.email,
-          role: existing.role,
-          phone: existing.phone,
-          passportDocumentUrl: existing.passportDocumentUrl,
-        },
+          user: {
+            id: String(existing._id),
+            name: existing.name,
+            email: existing.email,
+            role: existing.role,
+            phone: existing.phone,
+            address: existing.address,
+            passportDocumentUrl: existing.passportDocumentUrl,
+          },
       };
     }
 
@@ -123,6 +124,10 @@ export async function loginUser(input: { email: string; password: string }) {
     throw new ValidationError("Invalid credentials");
   }
 
+  if (user.isActive === false && (user.role === "ADMIN" || user.role === "RECEPTIONIST")) {
+    throw new ValidationError("Your account has been deactivated. Contact the owner.");
+  }
+
   const token = signAccessToken({
     sub: String(user._id),
     role: coerceRole(user.role),
@@ -137,6 +142,7 @@ export async function loginUser(input: { email: string; password: string }) {
       email: user.email,
       role: user.role,
       phone: user.phone,
+      address: user.address,
       passportDocumentUrl: user.passportDocumentUrl,
     },
   };
@@ -151,13 +157,14 @@ export async function verifyTokenAndGetUser(token: string) {
 
   return {
     claims,
-    user: {
-      id: String(user._id),
-      name: user.name,
-      email: user.email,
-      role: coerceRole(user.role),
-      phone: user.phone,
-      passportDocumentUrl: user.passportDocumentUrl,
-    },
+      user: {
+        id: String(user._id),
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        phone: user.phone,
+        address: user.address,
+        passportDocumentUrl: user.passportDocumentUrl,
+      },
   };
 }

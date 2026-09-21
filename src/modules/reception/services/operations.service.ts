@@ -34,7 +34,7 @@ export async function checkInBooking(bookingId: string) {
   booking.checkInAt = new Date();
   await booking.save();
 
-  await RoomModel.findByIdAndUpdate(booking.roomId, { status: "RESERVED" });
+  await RoomModel.findByIdAndUpdate(booking.roomId, { status: "OCCUPIED" });
 
   return booking.toObject();
 }
@@ -115,7 +115,7 @@ export async function extendStay(bookingId: string, extraNights: number) {
 
   const persisted = await BookingModel.findById(bookingId);
   if (persisted && persisted.status === "CHECKED_IN") {
-    await RoomModel.findByIdAndUpdate(persisted.roomId, { status: "RESERVED" });
+    await RoomModel.findByIdAndUpdate(persisted.roomId, { status: "OCCUPIED" });
   }
 
   return booking;

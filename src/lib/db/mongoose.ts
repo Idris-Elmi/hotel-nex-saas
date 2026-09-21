@@ -1,6 +1,15 @@
 import mongoose from "mongoose";
 import { appConfig } from "@/lib/config";
 
+import "@/models/User";
+import "@/models/RoomType";
+import "@/models/Room";
+import "@/models/Booking";
+import "@/models/Payment";
+import "@/models/RevenueEntry";
+import "@/models/Expenditure";
+import "@/models/BookingDraft";
+
 declare global {
   var mongooseConn: { conn: typeof mongoose | null; promise: Promise<typeof mongoose> | null } | undefined;
 }

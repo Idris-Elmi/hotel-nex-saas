@@ -5,7 +5,7 @@ import { saveRoomImage } from "@/lib/upload/storage";
 
 export async function POST(req: Request) {
   try {
-    authorize(req, ["ADMIN"]);
+    authorize(req, ["OWNER", "ADMIN"]);
 
     const form = await req.formData();
     const file = form.get("file");

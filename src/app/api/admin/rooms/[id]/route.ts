@@ -9,7 +9,7 @@ import { RoomTypeModel } from "@/models/RoomType";
 
 export async function GET(req: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    authorize(req, ["ADMIN"]);
+    authorize(req, ["OWNER", "ADMIN"]);
     await connectDb();
     const { id } = await context.params;
     const room = await RoomModel.findById(id).populate("type").lean();
@@ -21,7 +21,7 @@ export async function GET(req: Request, context: { params: Promise<{ id: string 
 
 export async function PATCH(req: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    authorize(req, ["ADMIN"]);
+    authorize(req, ["OWNER", "ADMIN"]);
     await connectDb();
 
     const { id } = await context.params;
@@ -46,7 +46,7 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
 
 export async function DELETE(req: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    authorize(req, ["ADMIN"]);
+    authorize(req, ["OWNER", "ADMIN"]);
     await connectDb();
     const { id } = await context.params;
 

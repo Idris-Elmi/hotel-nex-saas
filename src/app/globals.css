@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #f8fafc;
   --foreground: #0f172a;
@@ -11,6 +13,11 @@
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);
   --font-sans: var(--font-body);
+}
+
+*, *::before, *::after {
+  transition: background-color 200ms ease, border-color 200ms ease,
+              color 200ms ease;
 }
 
 h1,

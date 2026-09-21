@@ -8,7 +8,7 @@ import { isValidObjectId } from "mongoose";
 
 export async function POST(req: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    authorize(req, ["ADMIN", "RECEPTIONIST"]);
+    authorize(req, ["OWNER", "ADMIN", "RECEPTIONIST"]);
     await connectDb();
     const { id } = await context.params;
 

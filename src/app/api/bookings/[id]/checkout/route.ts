@@ -5,7 +5,7 @@ import { updateBookingLifecycle } from "@/modules/bookings/services/booking.serv
 
 export async function POST(req: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    authorize(req, ["ADMIN", "RECEPTIONIST"]);
+    authorize(req, ["OWNER", "ADMIN", "RECEPTIONIST"]);
     await connectDb();
 
     const { id } = await context.params;

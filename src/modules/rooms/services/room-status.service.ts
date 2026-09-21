@@ -1,7 +1,7 @@
 import { RoomModel } from "@/models/Room";
+import { BookingModel } from "@/models/Booking";
 
 export async function syncRoomStatus(roomId: string): Promise<void> {
-  const BookingModel = (await import("@/models/Booking")).BookingModel;
   const room = await RoomModel.findById(roomId).lean();
 
   if (!room || room.status === "MAINTENANCE") {
@@ -14,7 +14,7 @@ export async function syncRoomStatus(roomId: string): Promise<void> {
   });
 
   if (hasCheckedIn) {
-    await RoomModel.findByIdAndUpdate(roomId, { status: "RESERVED" });
+    await RoomModel.findByIdAndUpdate(roomId, { status: "OCCUPIED" });
     return;
   }
 

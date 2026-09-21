@@ -1,6 +1,4 @@
-import BookingDetailsPage, { metadata } from "../details/page";
-
-export { metadata };
+import BookingDetailsPage from "../details/page";
 
 export default function BookingDetailPage() {
   return <BookingDetailsPage />;

@@ -26,8 +26,8 @@ export const publicRoomCatalog: PublicRoomCatalogItem[] = [
       "A modern deluxe room designed for business and leisure guests who want comfort, natural light, and a quiet work corner.",
     amenities: ["King bed", "Rain shower", "Smart TV", "High-speed Wi-Fi", "Work desk"],
     pricing: {
-      bedOnly: 140,
-      bedBreakfast: 170,
+      bedOnly: 5000,
+      bedBreakfast: 5500,
     },
     sampleImages: [hotelRoomPhoto1, hotelRoomPhoto2],
   },
@@ -40,8 +40,8 @@ export const publicRoomCatalog: PublicRoomCatalogItem[] = [
       "A premium suite with generous living space and upgraded amenities for longer stays, family travel, or executive trips.",
     amenities: ["Super king bed", "Lounge space", "Coffee station", "Bathtub", "Premium toiletries"],
     pricing: {
-      bedOnly: 220,
-      bedBreakfast: 265,
+      bedOnly: 6000,
+      bedBreakfast: 6500,
     },
     sampleImages: [hotelRoomPhoto2, hotelRoomPhoto1],
   },
@@ -54,8 +54,8 @@ export const publicRoomCatalog: PublicRoomCatalogItem[] = [
       "A practical family room with adaptable bed configuration, comfortable seating, and storage for multi-guest stays.",
     amenities: ["Twin + queen options", "Mini fridge", "Extra storage", "Connecting room option", "Kids welcome kit"],
     pricing: {
-      bedOnly: 180,
-      bedBreakfast: 225,
+      bedOnly: 7000,
+      bedBreakfast: 7500,
     },
     sampleImages: [hotelRoomPhoto3, hotelRoomPhoto2],
   },

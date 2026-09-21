@@ -14,7 +14,8 @@ export const availabilitySchema = z.object({
 
 export const createBookingSchema = z.object({
   userId: z.string().min(1).optional(),
-  roomId: z.string().min(1),
+  roomId: z.string().min(1).optional(),
+  roomNumber: z.string().min(1).optional(),
   arrivalDate: z.string().date(),
   nights: z.number().int().min(1).max(30),
   guests: z.object({

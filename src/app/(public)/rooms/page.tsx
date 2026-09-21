@@ -42,7 +42,7 @@ export default function RoomsPage() {
                 {room.type}
               </p>
               <p className="absolute bottom-4 right-4 rounded-full bg-amber-300 px-4 py-1.5 text-xs font-bold uppercase tracking-wide text-[#2d1f10]">
-                From ${room.pricing.bedOnly.toFixed(2)}
+                From ETB {room.pricing.bedOnly.toFixed(2)}
               </p>
             </div>
 
@@ -58,10 +58,10 @@ export default function RoomsPage() {
 
               <div className="mt-5 grid gap-2 rounded-2xl border border-slate-200 bg-[#faf7f2] p-4 text-sm text-slate-700 sm:grid-cols-2">
                 <p>
-                  Bed Only: <strong>${room.pricing.bedOnly.toFixed(2)}</strong>
+                  Bed Only: <strong>ETB {room.pricing.bedOnly.toFixed(2)}</strong>
                 </p>
                 <p>
-                  Bed & Breakfast: <strong>${room.pricing.bedBreakfast.toFixed(2)}</strong>
+                  Bed & Breakfast: <strong>ETB {room.pricing.bedBreakfast.toFixed(2)}</strong>
                 </p>
               </div>
 

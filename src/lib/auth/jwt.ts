@@ -3,7 +3,7 @@ import { appConfig } from "@/lib/config";
 import { UnauthorizedError } from "@/lib/errors";
 import type { SignOptions } from "jsonwebtoken";
 
-export type JwtRole = "ADMIN" | "RECEPTIONIST" | "CUSTOMER";
+export type JwtRole = "OWNER" | "ADMIN" | "RECEPTIONIST" | "CUSTOMER";
 
 export type JwtClaims = {
   sub: string;

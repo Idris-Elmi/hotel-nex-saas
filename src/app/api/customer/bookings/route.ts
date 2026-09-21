@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { authorize } from "@/lib/auth/rbac";
 import { connectDb } from "@/lib/db/mongoose";
 import { fail, ok } from "@/lib/http";
+import { autoCancelExpiredPendingBookings } from "@/modules/bookings/services/booking.service";
 import { BookingModel } from "@/models/Booking";
 import { PaymentModel } from "@/models/Payment";
 import { RoomModel } from "@/models/Room";
@@ -11,6 +12,7 @@ export async function GET(req: Request) {
   try {
     const claims = authorize(req, ["CUSTOMER"]);
     await connectDb();
+    await autoCancelExpiredPendingBookings();
 
     const filters = [] as Array<Record<string, unknown>>;
     if (mongoose.isValidObjectId(claims.sub)) {

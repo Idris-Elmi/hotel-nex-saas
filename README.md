@@ -1,4 +1,4 @@
-# Hotel SaaS
+# Aurora Stays
 
 ## Local Setup
 

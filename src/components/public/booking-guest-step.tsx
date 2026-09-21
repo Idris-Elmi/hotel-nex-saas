@@ -1,14 +1,14 @@
 "use client";
 
-import { FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
+import { FormEvent, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 type BookingGuestStepProps = {
   roomId: string;
   arrivalDate: string;
   nights: string;
   adults: string;
-  children: string;
+  childCount: string;
   pricingPlan: string;
 };
 
@@ -17,10 +17,11 @@ export function BookingGuestStep({
   arrivalDate,
   nights,
   adults,
-  children,
+  childCount,
   pricingPlan,
 }: BookingGuestStepProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -29,8 +30,16 @@ export function BookingGuestStep({
   const [address, setAddress] = useState("");
   const [identityFile, setIdentityFile] = useState<File | null>(null);
   const [identityPreviewUrl, setIdentityPreviewUrl] = useState("");
+  const [identityDocumentUrl, setIdentityDocumentUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const urlDoc = searchParams.get("identityDocumentUrl");
+    if (urlDoc && !identityDocumentUrl) {
+      setIdentityDocumentUrl(urlDoc);
+    }
+  }, []);
 
   async function submitGuestInfo(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -43,31 +52,33 @@ export function BookingGuestStep({
         return;
       }
 
-      if (!identityFile) {
-        setError("Please upload Passport / ID file.");
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+        setError("Please enter a valid email address (must contain @ and a domain like .com).");
         return;
       }
 
-      let documentUrl = "";
+      let documentUrl = identityDocumentUrl;
 
-      const form = new FormData();
-      form.append("file", identityFile);
+      if (identityFile) {
+        const form = new FormData();
+        form.append("file", identityFile);
 
-      const uploadResponse = await fetch("/api/uploads/id-doc", {
-        method: "POST",
-        body: form,
-      });
+        const uploadResponse = await fetch("/api/uploads/id-doc", {
+          method: "POST",
+          body: form,
+        });
 
-      const uploadPayload = await uploadResponse.json().catch(() => ({}));
-      if (!uploadResponse.ok) {
-        setError(uploadPayload.message ?? "Failed to upload ID/passport file.");
-        return;
+        const uploadPayload = await uploadResponse.json().catch(() => ({}));
+        if (!uploadResponse.ok) {
+          setError(uploadPayload.message ?? "Failed to upload ID/passport file.");
+          return;
+        }
+
+        documentUrl = String(uploadPayload.url ?? "").trim();
       }
-
-      documentUrl = String(uploadPayload.url ?? "").trim();
 
       if (!documentUrl) {
-        setError("Failed to save uploaded Passport / ID file.");
+        setError("Please upload Passport / ID file.");
         return;
       }
 
@@ -88,7 +99,7 @@ export function BookingGuestStep({
         arrivalDate,
         nights,
         adults,
-        children,
+        childCount,
         pricingPlan,
         firstName: guestData.firstName,
         lastName: guestData.lastName,
@@ -99,6 +110,8 @@ export function BookingGuestStep({
         identityDocumentUrl: documentUrl,
       });
 
+      setIdentityDocumentUrl(documentUrl);
+
       router.push(`/booking/customer-auth?${params.toString()}`);
     } finally {
       setSubmitting(false);
@@ -107,42 +120,42 @@ export function BookingGuestStep({
 
   return (
     <form onSubmit={submitGuestInfo} className="mt-6 grid gap-4 md:grid-cols-2">
-      {error ? <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 md:col-span-2">{error}</p> : null}
+      {error ? <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 md:col-span-2 dark:bg-red-900/20 dark:text-red-400">{error}</p> : null}
 
-      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 md:col-span-2">
-        <p className="text-sm font-bold text-slate-900">Guest Information</p>
-        <p className="mt-1 text-xs text-slate-600">Enter guest details and upload Passport / ID before continuing.</p>
+      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 md:col-span-2 dark:bg-[#243044] dark:border-[#2a3a52]">
+        <p className="text-sm font-bold text-slate-900 dark:text-white">Guest Information</p>
+        <p className="mt-1 text-xs text-slate-600 dark:text-[#94a3b8]">Enter guest details and upload Passport / ID before continuing.</p>
       </div>
 
-      <label className="grid gap-1 text-sm font-semibold text-slate-700">
+      <label className="grid gap-1 text-sm font-semibold text-slate-700 dark:text-[#94a3b8]">
         First Name *
-        <input className="rounded-lg border border-slate-300 px-3 py-2" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
+        <input className="rounded-lg border border-slate-300 px-3 py-2 dark:bg-[#243044] dark:border-[#2a3a52] dark:text-white dark:placeholder:text-[#4a5568] dark:focus:ring-[#d4a644]/40 dark:focus:border-[#d4a644]" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
       </label>
 
-      <label className="grid gap-1 text-sm font-semibold text-slate-700">
+      <label className="grid gap-1 text-sm font-semibold text-slate-700 dark:text-[#94a3b8]">
         Last Name *
-        <input className="rounded-lg border border-slate-300 px-3 py-2" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
+        <input className="rounded-lg border border-slate-300 px-3 py-2 dark:bg-[#243044] dark:border-[#2a3a52] dark:text-white dark:placeholder:text-[#4a5568] dark:focus:ring-[#d4a644]/40 dark:focus:border-[#d4a644]" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
       </label>
 
-      <label className="grid gap-1 text-sm font-semibold text-slate-700">
+      <label className="grid gap-1 text-sm font-semibold text-slate-700 dark:text-[#94a3b8]">
         Email *
-        <input className="rounded-lg border border-slate-300 px-3 py-2" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        <input className="rounded-lg border border-slate-300 px-3 py-2 dark:bg-[#243044] dark:border-[#2a3a52] dark:text-white dark:placeholder:text-[#4a5568] dark:focus:ring-[#d4a644]/40 dark:focus:border-[#d4a644]" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
       </label>
 
-      <label className="grid gap-1 text-sm font-semibold text-slate-700">
+      <label className="grid gap-1 text-sm font-semibold text-slate-700 dark:text-[#94a3b8]">
         Phone *
-        <input className="rounded-lg border border-slate-300 px-3 py-2" value={phone} onChange={(e) => setPhone(e.target.value)} required />
+        <input className="rounded-lg border border-slate-300 px-3 py-2 dark:bg-[#243044] dark:border-[#2a3a52] dark:text-white dark:placeholder:text-[#4a5568] dark:focus:ring-[#d4a644]/40 dark:focus:border-[#d4a644]" value={phone} onChange={(e) => setPhone(e.target.value)} required />
       </label>
 
-      <label className="grid gap-1 text-sm font-semibold text-slate-700 md:col-span-2">
+      <label className="grid gap-1 text-sm font-semibold text-slate-700 dark:text-[#94a3b8] md:col-span-2">
         Address
-        <input className="rounded-lg border border-slate-300 px-3 py-2" value={address} onChange={(e) => setAddress(e.target.value)} />
+        <input className="rounded-lg border border-slate-300 px-3 py-2 dark:bg-[#243044] dark:border-[#2a3a52] dark:text-white dark:placeholder:text-[#4a5568] dark:focus:ring-[#d4a644]/40 dark:focus:border-[#d4a644]" value={address} onChange={(e) => setAddress(e.target.value)} />
       </label>
 
-      <label className="grid gap-1 text-sm font-semibold text-slate-700 md:col-span-2">
+      <label className="grid gap-1 text-sm font-semibold text-slate-700 dark:text-[#94a3b8] md:col-span-2">
         Upload Passport / ID * (jpg, png, pdf, max 5MB)
         <input
-          className="rounded-lg border border-slate-300 px-3 py-2"
+          className="rounded-lg border border-slate-300 px-3 py-2 dark:bg-[#243044] dark:border-[#2a3a52] dark:text-white dark:file:text-[#94a3b8] dark:file:bg-[#2a3a52]"
           type="file"
           accept="image/jpeg,image/png,application/pdf"
           onChange={(e) => {
@@ -165,16 +178,17 @@ export function BookingGuestStep({
         />
       </label>
 
-      {identityFile ? <p className="text-xs text-slate-600 md:col-span-2">Selected file: {identityFile.name}</p> : null}
+      {identityFile ? <p className="text-xs text-slate-600 md:col-span-2 dark:text-[#94a3b8]">Selected file: {identityFile.name}</p> : null}
+      {!identityFile && identityDocumentUrl ? <p className="text-xs text-slate-600 md:col-span-2 dark:text-[#94a3b8]">Previously uploaded document on file. Choose a new file to replace it.</p> : null}
 
       {identityPreviewUrl ? (
         <div className="md:col-span-2">
-          <p className="mb-1 text-xs font-semibold text-slate-700">ID/Passport Preview</p>
-          <img src={identityPreviewUrl} alt="Selected identity document preview" className="max-h-56 rounded-lg border border-slate-300 object-contain" />
+          <p className="mb-1 text-xs font-semibold text-slate-700 dark:text-[#94a3b8]">ID/Passport Preview</p>
+          <img src={identityPreviewUrl} alt="Selected identity document preview" className="max-h-56 rounded-lg border border-slate-300 object-contain dark:border-[#2a3a52]" />
         </div>
       ) : null}
 
-      <button className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 md:col-span-2" type="submit" disabled={submitting}>
+      <button className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#c0392b] hover:bg-[#a93226] dark:bg-[#c0392b] dark:hover:bg-[#a93226] active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-[#c0392b]/20 transition-all duration-200 md:col-span-2" type="submit" disabled={submitting}>
         {submitting ? "Uploading and continuing..." : "Continue"}
       </button>
     </form>

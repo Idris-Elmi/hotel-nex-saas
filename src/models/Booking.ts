@@ -22,7 +22,7 @@ const BookingSchema = new Schema(
       subtotal: { type: Number, required: true },
       taxes: { type: Number, required: true },
       total: { type: Number, required: true },
-      currency: { type: String, default: "USD" },
+      currency: { type: String, default: "ETB" },
     },
     guestSnapshot: {
       fullName: { type: String, required: true },
@@ -48,6 +48,10 @@ const BookingSchema = new Schema(
 
 BookingSchema.index({ roomId: 1, arrivalDate: 1, departureDate: 1, status: 1 }, { name: "room_date_overlap_idx" });
 BookingSchema.index({ status: 1, arrivalDate: 1 });
+BookingSchema.index(
+  { createdAt: 1 },
+  { expireAfterSeconds: 86400, partialFilterExpression: { status: "PENDING" } },
+);
 
 export type BookingDocument = InferSchemaType<typeof BookingSchema> & { _id: Types.ObjectId };
 

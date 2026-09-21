@@ -6,7 +6,7 @@ import { resolveAnalyticsDateFilter } from "@/modules/analytics/utils/date-filte
 
 export async function GET(req: Request) {
   try {
-    authorize(req, ["ADMIN"]);
+    authorize(req, ["OWNER", "ADMIN"]);
     await connectDb();
 
     const filter = resolveAnalyticsDateFilter(new URL(req.url).searchParams);

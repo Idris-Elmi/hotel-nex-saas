@@ -43,7 +43,8 @@ export function middleware(req: NextRequest) {
   const isBookingPath = pathname === "/booking/detail" || pathname === "/booking/details" || pathname.startsWith("/booking/");
   const isAdminPath = pathname.startsWith("/admin/") || pathname === "/admin";
   const isReceptionPath = pathname.startsWith("/reception/") || pathname === "/reception";
-  const isStaffPath = isAdminPath || isReceptionPath;
+  const isOwnerPath = pathname.startsWith("/owner/") || pathname === "/owner";
+  const isStaffPath = isAdminPath || isReceptionPath || isOwnerPath;
   const isCustomerPath = pathname.startsWith("/customer/") || pathname === "/customer";
 
   const token = req.cookies.get("hotel_saas_token")?.value;
@@ -67,6 +68,10 @@ export function middleware(req: NextRequest) {
     if (isReceptionPath && !isAdminRole && !isReceptionRole) {
       return NextResponse.redirect(new URL("/auth/staff-signin", req.url));
     }
+
+    if (isOwnerPath && role !== "OWNER") {
+      return NextResponse.redirect(new URL("/auth/staff-signin", req.url));
+    }
   }
 
   if (isCustomerPath) {
@@ -86,5 +91,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/booking/:path*", "/booking/detail", "/booking/details", "/admin/:path*", "/reception/:path*", "/customer/:path*", "/customer"],
+  matcher: ["/booking/:path*", "/booking/detail", "/booking/details", "/admin/:path*", "/reception/:path*", "/owner/:path*", "/customer/:path*", "/customer"],
 };

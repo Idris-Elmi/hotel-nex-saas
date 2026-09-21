@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { RoleGate } from "@/components/auth/RoleGate";
+import { triggerAnalyticsRefresh } from "@/lib/analyticsRefresh";
 
 type Booking = {
   _id: string;
@@ -19,20 +20,28 @@ type Booking = {
   };
 };
 
-export default function AdminBookingsPage() {
+type DetailedBooking = Booking & {
+  roomNumber?: string;
+  paymentStatus?: string;
+  guests?: { adults?: number; children?: number };
+  adults?: number;
+  children?: number;
+};
+
+export default function AdminBookingsPage({ apiBase }: { apiBase?: string } = {}) {
   return (
-    <RoleGate allow={["ADMIN"]} loginRoute="/auth/staff-signin">
-      <AdminBookingsContent />
+    <RoleGate allow={["OWNER", "ADMIN"]} loginRoute="/auth/staff-signin">
+      <AdminBookingsContent apiBase={apiBase} />
     </RoleGate>
   );
 }
 
-function AdminBookingsContent() {
+function AdminBookingsContent({ apiBase = "/api/admin" }: { apiBase?: string }) {
   function getToken() {
     if (typeof window === "undefined") {
       return "";
     }
-    return localStorage.getItem("hotel_saas_token") ?? "";
+    return (sessionStorage.getItem("hotel_saas_token_staff") || "") ?? "";
   }
 
   function requireAuthHeader() {
@@ -49,7 +58,7 @@ function AdminBookingsContent() {
   const [loading, setLoading] = useState(false);
 
   const [form, setForm] = useState({
-    roomId: "",
+    roomNumber: "",
     userId: "",
     arrivalDate: new Date().toISOString().slice(0, 10),
     nights: 2,
@@ -62,6 +71,12 @@ function AdminBookingsContent() {
     identityDocumentUrl: "/uploads/ids/example.jpg",
   });
 
+  const [lookupQuery, setLookupQuery] = useState("");
+  const [lookupType, setLookupType] = useState<"bookingId" | "name" | "email" | "phone">("bookingId");
+  const [lookupResult, setLookupResult] = useState<DetailedBooking | null>(null);
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+
   async function refreshBookings() {
     const authHeader = requireAuthHeader();
     if (!authHeader) {
@@ -71,7 +86,7 @@ function AdminBookingsContent() {
     setLoading(true);
     setError("");
 
-    const res = await fetch("/api/admin/bookings", {
+    const res = await fetch(`${apiBase}/bookings`, {
       headers: authHeader,
       cache: "no-store",
     });
@@ -102,7 +117,7 @@ function AdminBookingsContent() {
 
     const payload = {
       userId: form.userId || undefined,
-      roomId: form.roomId,
+      roomNumber: form.roomNumber,
       arrivalDate: form.arrivalDate,
       nights: Number(form.nights),
       guests: {
@@ -120,7 +135,7 @@ function AdminBookingsContent() {
       idempotencyKey: crypto.randomUUID(),
     };
 
-    const res = await fetch("/api/admin/bookings", {
+    const res = await fetch(`${apiBase}/bookings`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -140,6 +155,7 @@ function AdminBookingsContent() {
     }
 
     await refreshBookings();
+    triggerAnalyticsRefresh();
   }
 
   async function lifecycleAction(bookingId: string, action: "checkin" | "checkout" | "cancel") {
@@ -153,7 +169,7 @@ function AdminBookingsContent() {
         ? `/api/bookings/${bookingId}/checkin`
         : action === "checkout"
           ? `/api/bookings/${bookingId}/checkout`
-          : `/api/admin/bookings/${bookingId}/cancel`;
+          : `${apiBase}/bookings/${bookingId}/cancel`;
 
     const res = await fetch(endpoint, {
       method: "POST",
@@ -171,60 +187,257 @@ function AdminBookingsContent() {
     }
 
     await refreshBookings();
+    triggerAnalyticsRefresh();
+  }
+
+  async function handleLookup() {
+    if (!lookupQuery.trim()) return;
+    setLookupLoading(true);
+    setLookupError(null);
+    setLookupResult(null);
+    try {
+      const param =
+        lookupType === "bookingId" ? "bookingId"
+        : lookupType === "name" ? "guestName"
+        : lookupType === "email" ? "guestEmail"
+        : "guestPhone";
+      const res = await fetch(`${apiBase}/bookings/search?${param}=${encodeURIComponent(lookupQuery.trim())}`, {
+        headers: requireAuthHeader() ?? {},
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Not found");
+      setLookupResult(Array.isArray(data) ? data[0] : data);
+    } catch (err: unknown) {
+      setLookupError(err instanceof Error ? err.message : "Search failed");
+    } finally {
+      setLookupLoading(false);
+    }
+  }
+
+  async function handleLookupStatusUpdate(bookingId: string, newStatus: string) {
+    const authHeader = requireAuthHeader();
+    if (!authHeader) return;
+    try {
+      if (newStatus === "CHECKED_IN") {
+        await lifecycleAction(bookingId, "checkin");
+      } else if (newStatus === "CHECKED_OUT") {
+        await lifecycleAction(bookingId, "checkout");
+      } else if (newStatus === "CANCELLED") {
+        await lifecycleAction(bookingId, "cancel");
+      } else {
+        const res = await fetch(`${apiBase}/bookings/${bookingId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", ...authHeader },
+          body: JSON.stringify({ status: newStatus }),
+        });
+        if (!res.ok) {
+          const d = await res.json();
+          throw new Error(d.error || "Failed to update status");
+        }
+        triggerAnalyticsRefresh();
+      }
+      const param =
+        lookupType === "bookingId" ? "bookingId"
+        : lookupType === "name" ? "guestName"
+        : lookupType === "email" ? "guestEmail"
+        : "guestPhone";
+      const res = await fetch(`${apiBase}/bookings/search?${param}=${encodeURIComponent(lookupQuery.trim())}`, {
+        headers: requireAuthHeader() ?? {},
+      });
+      const data = await res.json();
+      if (res.ok) setLookupResult(Array.isArray(data) ? data[0] : data);
+    } catch (err: unknown) {
+      setLookupError(err instanceof Error ? err.message : "Status update failed");
+    }
   }
 
   return (
-    <main className="mx-auto max-w-6xl px-6 py-10">
-      <h1 className="mb-3 text-3xl font-black text-slate-900">Booking Management</h1>
-      <p className="mb-6 text-slate-600">Core booking engine UI for creating and managing reservations and lifecycle transitions.</p>
+    <main className="p-6 lg:p-8 space-y-8 bg-[#F0F4FF] dark:bg-[#070B1A] min-h-screen max-w-7xl mx-auto">
+      <h1 className="text-2xl font-serif font-bold text-slate-900 dark:text-slate-100 mb-6">Booking Management</h1>
 
-      {error ? <p className="mb-4 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
-      {loading ? <p className="mb-4 text-sm text-slate-500">Loading...</p> : null}
+      {error ? <p className="rounded-xl bg-red-50 dark:bg-red-900/20 px-3 py-2 text-sm text-red-700 dark:text-red-400">{error}</p> : null}
+      {loading ? <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">Loading...</p> : null}
 
-      <div className="mb-6">
-        <button className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white" onClick={refreshBookings}>
+      <div className="mb-6 bg-white dark:bg-[#0F1629] border border-slate-200 dark:border-[#1E2D4A] rounded-2xl p-5 shadow-sm">
+        <button className="rounded-xl bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 transition-all duration-200" onClick={refreshBookings}>
           Refresh Bookings
         </button>
       </div>
 
-      <section className="mb-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="mb-4 text-xl font-bold text-slate-900">Create Booking (PENDING + Room RESERVED)</h2>
+      <section className="mb-8 bg-white dark:bg-[#0F1629] border border-slate-200 dark:border-[#1E2D4A] rounded-2xl p-5 shadow-sm">
+        <h2 className="text-sm font-semibold uppercase tracking-widest text-[#8892B8] dark:text-[#4B5580] mb-4">Create Booking (PENDING + Room RESERVED)</h2>
         <form onSubmit={createBooking} className="grid gap-3 md:grid-cols-2">
-          <input className="rounded-lg border border-slate-300 px-3 py-2" placeholder="Room ID" value={form.roomId} onChange={(e) => setForm((v) => ({ ...v, roomId: e.target.value }))} required />
-          <input className="rounded-lg border border-slate-300 px-3 py-2" placeholder="Optional User ID" value={form.userId} onChange={(e) => setForm((v) => ({ ...v, userId: e.target.value }))} />
-          <input className="rounded-lg border border-slate-300 px-3 py-2" type="date" value={form.arrivalDate} onChange={(e) => setForm((v) => ({ ...v, arrivalDate: e.target.value }))} required />
-          <input className="rounded-lg border border-slate-300 px-3 py-2" type="number" min={1} value={form.nights} onChange={(e) => setForm((v) => ({ ...v, nights: Number(e.target.value) }))} required />
-          <input className="rounded-lg border border-slate-300 px-3 py-2" type="number" min={1} value={form.adults} onChange={(e) => setForm((v) => ({ ...v, adults: Number(e.target.value) }))} required />
-          <input className="rounded-lg border border-slate-300 px-3 py-2" type="number" min={0} value={form.children} onChange={(e) => setForm((v) => ({ ...v, children: Number(e.target.value) }))} required />
-          <select className="rounded-lg border border-slate-300 px-3 py-2" value={form.pricingPlan} onChange={(e) => setForm((v) => ({ ...v, pricingPlan: e.target.value }))}>
+          <input className="rounded-xl border border-[#E0E7FF] dark:border-[#1E2D4A] bg-[#F1F5FF] dark:bg-[#1A2540] px-3 py-2 text-sm text-[#0D1340] dark:text-[#EEF2FF]" placeholder="Room Number (e.g. 101)" value={form.roomNumber} onChange={(e) => setForm((v) => ({ ...v, roomNumber: e.target.value }))} required />
+          <input className="rounded-xl border border-[#E0E7FF] dark:border-[#1E2D4A] bg-[#F1F5FF] dark:bg-[#1A2540] px-3 py-2 text-sm text-[#0D1340] dark:text-[#EEF2FF]" placeholder="Optional User ID" value={form.userId} onChange={(e) => setForm((v) => ({ ...v, userId: e.target.value }))} />
+          <input className="rounded-xl border border-[#E0E7FF] dark:border-[#1E2D4A] bg-[#F1F5FF] dark:bg-[#1A2540] px-3 py-2 text-sm text-[#0D1340] dark:text-[#EEF2FF]" type="date" value={form.arrivalDate} onChange={(e) => setForm((v) => ({ ...v, arrivalDate: e.target.value }))} required />
+          <input className="rounded-xl border border-[#E0E7FF] dark:border-[#1E2D4A] bg-[#F1F5FF] dark:bg-[#1A2540] px-3 py-2 text-sm text-[#0D1340] dark:text-[#EEF2FF]" type="number" min={1} value={form.nights} onChange={(e) => setForm((v) => ({ ...v, nights: Number(e.target.value) }))} required />
+          <input className="rounded-xl border border-[#E0E7FF] dark:border-[#1E2D4A] bg-[#F1F5FF] dark:bg-[#1A2540] px-3 py-2 text-sm text-[#0D1340] dark:text-[#EEF2FF]" type="number" min={1} value={form.adults} onChange={(e) => setForm((v) => ({ ...v, adults: Number(e.target.value) }))} required />
+          <input className="rounded-xl border border-[#E0E7FF] dark:border-[#1E2D4A] bg-[#F1F5FF] dark:bg-[#1A2540] px-3 py-2 text-sm text-[#0D1340] dark:text-[#EEF2FF]" type="number" min={0} value={form.children} onChange={(e) => setForm((v) => ({ ...v, children: Number(e.target.value) }))} required />
+          <select className="rounded-xl border border-[#E0E7FF] dark:border-[#1E2D4A] bg-[#F1F5FF] dark:bg-[#1A2540] px-3 py-2 text-sm text-[#0D1340] dark:text-[#EEF2FF]" value={form.pricingPlan} onChange={(e) => setForm((v) => ({ ...v, pricingPlan: e.target.value }))}>
             <option value="BED_ONLY">BED_ONLY</option>
             <option value="BED_BREAKFAST">BED_BREAKFAST</option>
           </select>
-          <input className="rounded-lg border border-slate-300 px-3 py-2" placeholder="Guest full name" value={form.fullName} onChange={(e) => setForm((v) => ({ ...v, fullName: e.target.value }))} required />
-          <input className="rounded-lg border border-slate-300 px-3 py-2" type="email" placeholder="Guest email" value={form.email} onChange={(e) => setForm((v) => ({ ...v, email: e.target.value }))} required />
-          <input className="rounded-lg border border-slate-300 px-3 py-2" placeholder="Guest phone" value={form.phone} onChange={(e) => setForm((v) => ({ ...v, phone: e.target.value }))} required />
-          <input className="rounded-lg border border-slate-300 px-3 py-2 md:col-span-2" placeholder="Guest ID/passport URL" value={form.identityDocumentUrl} onChange={(e) => setForm((v) => ({ ...v, identityDocumentUrl: e.target.value }))} required />
-          <button className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white md:col-span-2" type="submit">
+          <input className="rounded-xl border border-[#E0E7FF] dark:border-[#1E2D4A] bg-[#F1F5FF] dark:bg-[#1A2540] px-3 py-2 text-sm text-[#0D1340] dark:text-[#EEF2FF]" placeholder="Guest full name" value={form.fullName} onChange={(e) => setForm((v) => ({ ...v, fullName: e.target.value }))} required />
+          <input className="rounded-xl border border-[#E0E7FF] dark:border-[#1E2D4A] bg-[#F1F5FF] dark:bg-[#1A2540] px-3 py-2 text-sm text-[#0D1340] dark:text-[#EEF2FF]" type="email" placeholder="Guest email" value={form.email} onChange={(e) => setForm((v) => ({ ...v, email: e.target.value }))} required />
+          <input className="rounded-xl border border-[#E0E7FF] dark:border-[#1E2D4A] bg-[#F1F5FF] dark:bg-[#1A2540] px-3 py-2 text-sm text-[#0D1340] dark:text-[#EEF2FF]" placeholder="Guest phone" value={form.phone} onChange={(e) => setForm((v) => ({ ...v, phone: e.target.value }))} required />
+          <input className="rounded-xl border border-[#E0E7FF] dark:border-[#1E2D4A] bg-[#F1F5FF] dark:bg-[#1A2540] px-3 py-2 text-sm text-[#0D1340] dark:text-[#EEF2FF] md:col-span-2" placeholder="Guest ID/passport URL" value={form.identityDocumentUrl} onChange={(e) => setForm((v) => ({ ...v, identityDocumentUrl: e.target.value }))} required />
+          <button className="rounded-xl bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 transition-all duration-200 md:col-span-2" type="submit">
             Create Booking
           </button>
         </form>
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="mb-4 text-xl font-bold text-slate-900">Bookings</h2>
+      <section className="bg-white dark:bg-[#0F1629] border border-slate-200 dark:border-[#1E2D4A] rounded-2xl p-5 shadow-sm mb-6">
+        <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-4">
+          Lookup Booking
+        </h2>
+        <div className="flex gap-2 mb-4">
+          {(["bookingId", "name", "email", "phone"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => { setLookupType(t); setLookupQuery(""); setLookupResult(null); setLookupError(null); }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
+                lookupType === t
+                  ? "bg-indigo-600 text-white shadow-sm"
+                  : "bg-slate-100 dark:bg-[#1A2540] text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-[#252D47]"
+              }`}
+            >
+              {t === "bookingId" ? "Booking ID" : t === "name" ? "Guest Name" : t === "email" ? "Email" : "Phone"}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-3 items-center">
+          <input
+            value={lookupQuery}
+            onChange={(e) => setLookupQuery(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleLookup()}
+            placeholder={lookupType === "bookingId" ? "e.g. BK-20240615-A3F2" : lookupType === "name" ? "e.g. John Smith" : lookupType === "email" ? "e.g. john@example.com" : "e.g. +1234567890"}
+            className="flex-1 px-4 py-2.5 rounded-xl text-sm bg-slate-50 dark:bg-[#1A2540] border border-slate-200 dark:border-[#252D47] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-400 transition-all duration-200"
+          />
+          <button
+            onClick={handleLookup}
+            disabled={lookupLoading}
+            className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
+          >
+            {lookupLoading ? (
+              <svg className="animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="15" height="15"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+            ) : (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="15" height="15"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
+            )}
+            {lookupLoading ? "Searching..." : "Search"}
+          </button>
+          {(lookupResult || lookupError) && (
+            <button
+              onClick={() => { setLookupResult(null); setLookupError(null); setLookupQuery(""); }}
+              className="px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#1A2540] transition-all duration-150"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="15" height="15"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
+            </button>
+          )}
+        </div>
+
+        {lookupError && (
+          <div className="flex items-center gap-2 mt-3 text-sm text-rose-600 dark:text-rose-400">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="15" height="15"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+            {lookupError}
+          </div>
+        )}
+
+        {lookupResult && (
+          <div className="bg-indigo-50/60 dark:bg-indigo-900/10 border border-indigo-200 dark:border-indigo-800 rounded-2xl p-5 mt-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <p className="text-lg font-serif font-bold text-slate-900 dark:text-slate-100">{lookupResult.bookingRef}</p>
+                <p className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">{lookupResult.guestSnapshot?.fullName}</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+                  Room {(lookupResult as DetailedBooking).roomNumber || lookupResult.roomId} &middot; {new Date(lookupResult.arrivalDate).toLocaleDateString()} &rarr; {new Date(lookupResult.departureDate).toLocaleDateString()} &middot; {Math.ceil((new Date(lookupResult.departureDate).getTime() - new Date(lookupResult.arrivalDate).getTime()) / 86400000)} nights
+                </p>
+              </div>
+              <span className={`px-3 py-1 rounded-full text-xs font-semibold inline-block w-fit ${
+                lookupResult.status === "CONFIRMED" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400" :
+                lookupResult.status === "CHECKED_IN" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400" :
+                lookupResult.status === "CHECKED_OUT" ? "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300" :
+                lookupResult.status === "CANCELLED" ? "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-400" :
+                "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400"
+              }`}>{lookupResult.status}</span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
+              <div className="bg-white dark:bg-[#141829] rounded-xl p-3 border border-slate-200 dark:border-[#252D47]">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">Total Price</p>
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">ETB {lookupResult.totalPrice}</p>
+              </div>
+              <div className="bg-white dark:bg-[#141829] rounded-xl p-3 border border-slate-200 dark:border-[#252D47]">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">Payment</p>
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{(lookupResult as DetailedBooking).paymentStatus || "N/A"}</p>
+              </div>
+              <div className="bg-white dark:bg-[#141829] rounded-xl p-3 border border-slate-200 dark:border-[#252D47]">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">Adults</p>
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{(lookupResult as DetailedBooking).guests?.adults ?? (lookupResult as DetailedBooking).adults ?? "N/A"}</p>
+              </div>
+              <div className="bg-white dark:bg-[#141829] rounded-xl p-3 border border-slate-200 dark:border-[#252D47]">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">Children</p>
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{(lookupResult as DetailedBooking).guests?.children ?? (lookupResult as DetailedBooking).children ?? "N/A"}</p>
+              </div>
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-indigo-200 dark:border-indigo-800">
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">Update Booking Status</p>
+              <div className="flex flex-wrap gap-2">
+                {lookupResult.status === "PENDING" && (
+                  <>
+                    <button onClick={() => handleLookupStatusUpdate(lookupResult._id, "CONFIRMED")}
+                      className="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 transition-all duration-200 active:scale-[0.99]">
+                      Confirm Booking
+                    </button>
+                    <button onClick={() => handleLookupStatusUpdate(lookupResult._id, "CANCELLED")}
+                      className="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-rose-500 hover:bg-rose-600 transition-all duration-200 active:scale-[0.99]">
+                      Cancel Booking
+                    </button>
+                  </>
+                )}
+                {lookupResult.status === "CONFIRMED" && (
+                  <>
+                    <button onClick={() => handleLookupStatusUpdate(lookupResult._id, "CHECKED_IN")}
+                      className="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 dark:hover:bg-slate-600 transition-all duration-200 active:scale-[0.99]">
+                      Check In
+                    </button>
+                    <button onClick={() => handleLookupStatusUpdate(lookupResult._id, "CANCELLED")}
+                      className="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-rose-500 hover:bg-rose-600 transition-all duration-200 active:scale-[0.99]">
+                      Cancel Booking
+                    </button>
+                  </>
+                )}
+                {lookupResult.status === "CHECKED_IN" && (
+                  <button onClick={() => handleLookupStatusUpdate(lookupResult._id, "CHECKED_OUT")}
+                    className="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-amber-500 hover:bg-amber-600 transition-all duration-200 active:scale-[0.99]">
+                    Check Out
+                  </button>
+                )}
+                {(lookupResult.status === "CHECKED_OUT" || lookupResult.status === "CANCELLED") && (
+                  <p className="text-xs text-slate-400 dark:text-slate-500">No further actions available.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section className="bg-white dark:bg-[#0F1629] border border-slate-200 dark:border-[#1E2D4A] rounded-2xl p-5 shadow-sm">
+        <h2 className="text-sm font-semibold uppercase tracking-widest text-[#8892B8] dark:text-[#4B5580] mb-4">Bookings</h2>
         <div className="grid gap-3">
           {bookings.map((booking) => (
-            <article key={booking._id} className="grid gap-2 rounded-xl border border-slate-200 p-4 md:grid-cols-[1fr_auto] md:items-center">
+            <article key={booking._id} className="grid gap-2 rounded-xl border border-slate-200 dark:border-[#1E2D4A] bg-white dark:bg-[#0F1629] p-4 md:grid-cols-[1fr_auto] md:items-center">
               <div>
-                <p className="font-semibold text-slate-900">{booking.bookingRef} - {booking.status}</p>
-                <p className="text-sm text-slate-600">Room: {booking.roomId} | {booking.pricingPlan} | Total: ${booking.totalPrice}</p>
-                <p className="text-sm text-slate-600">Guest: {booking.guestSnapshot?.fullName} ({booking.guestSnapshot?.email})</p>
-                <p className="text-sm text-slate-600">{new Date(booking.arrivalDate).toLocaleDateString()} to {new Date(booking.departureDate).toLocaleDateString()}</p>
+                <p className="font-semibold text-slate-900 dark:text-slate-100">{booking.bookingRef} - {booking.status}</p>
+                <p className="text-sm text-slate-600 dark:text-slate-400">Room: {booking.roomId} | {booking.pricingPlan} | Total: ETB {booking.totalPrice}</p>
+                <p className="text-sm text-slate-600 dark:text-slate-400">Guest: {booking.guestSnapshot?.fullName} ({booking.guestSnapshot?.email})</p>
+                <p className="text-sm text-slate-600 dark:text-slate-400">{new Date(booking.arrivalDate).toLocaleDateString()} to {new Date(booking.departureDate).toLocaleDateString()}</p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white" onClick={() => lifecycleAction(booking._id, "checkin")}>Check-In</button>
-                <button className="rounded-lg bg-amber-600 px-3 py-2 text-xs font-semibold text-white" onClick={() => lifecycleAction(booking._id, "checkout")}>Check-Out</button>
-                <button className="rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white" onClick={() => lifecycleAction(booking._id, "cancel")}>Cancel</button>
+                <button className="rounded-xl bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 transition-all duration-200" onClick={() => lifecycleAction(booking._id, "checkin")}>Check-In</button>
+                <button className="rounded-xl bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 transition-all duration-200" onClick={() => lifecycleAction(booking._id, "checkout")}>Check-Out</button>
+                <button className="rounded-xl bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 transition-all duration-200" onClick={() => lifecycleAction(booking._id, "cancel")}>Cancel</button>
               </div>
             </article>
           ))}

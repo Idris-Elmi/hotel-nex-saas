@@ -61,7 +61,7 @@ async function resolveLinkedUser(input: {
     }
   }
 
-  const existingByEmail = await UserModel.findOne({ email: input.guest.email });
+  const existingByEmail = await UserModel.findOne({ email: input.guest.email.toLowerCase() });
   if (existingByEmail) {
     return existingByEmail;
   }
@@ -75,13 +75,13 @@ async function upsertGuest(guest: {
   phone: string;
   identityDocumentUrl: string;
 }) {
-  const existing = await UserModel.findOne({ email: guest.email });
+  const existing = await UserModel.findOne({ email: guest.email.toLowerCase() });
   if (existing) {
     return existing;
   }
 
   return UserModel.create({
-    email: guest.email,
+    email: guest.email.toLowerCase(),
     name: guest.fullName,
     phone: guest.phone,
     role: "CUSTOMER",
@@ -216,6 +216,32 @@ export async function getBookingById(id: string) {
 
   const payments = await PaymentModel.find({ bookingId: booking._id }).sort({ createdAt: -1 }).lean();
   return { ...booking, payments };
+}
+
+export const UNPAID_BOOKING_CANCEL_MS = (Number(process.env.UNPAID_BOOKING_CANCEL_MINUTES ?? 30) || 30) * 60 * 1000;
+
+export async function autoCancelExpiredPendingBookings(cancelAfterMs: number = UNPAID_BOOKING_CANCEL_MS): Promise<number> {
+  const cutoff = new Date(Date.now() - cancelAfterMs);
+
+  const stale = await BookingModel.find(
+    { status: "PENDING", createdAt: { $lt: cutoff } },
+    { _id: 1, roomId: 1 },
+  ).lean();
+
+  let cancelled = 0;
+  for (const booking of stale) {
+    const result = await BookingModel.updateOne(
+      { _id: booking._id, status: "PENDING" },
+      { $set: { status: "CANCELLED", cancelledAt: new Date() } },
+    );
+
+    if (result.modifiedCount > 0) {
+      await syncRoomStatus(String(booking.roomId));
+      cancelled += 1;
+    }
+  }
+
+  return cancelled;
 }
 
 export async function updateBookingLifecycle(bookingId: string, status: BookingStatus) {

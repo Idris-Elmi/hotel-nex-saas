@@ -93,6 +93,17 @@ export async function addBookingPayment(input: {
   const paidInFull = remainingDue > 0 && input.amount >= remainingDue;
   const computedStatus = input.status ?? (input.method === "cash" ? (paidInFull ? "PAID" : "PARTIAL") : "PENDING");
 
+  // Duplicate payment guard — prevent same booking from being charged twice
+  const existingPayment = await PaymentModel.findOne({
+    bookingId: booking._id,
+    status: { $nin: ["FAILED", "REJECTED"] },
+    method: input.method,
+  }).lean();
+
+  if (existingPayment) {
+    return existingPayment;
+  }
+
   const payment = await PaymentModel.create({
     bookingId: booking._id,
     userId: booking.userId,

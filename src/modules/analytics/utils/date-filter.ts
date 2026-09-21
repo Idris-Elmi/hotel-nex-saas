@@ -2,6 +2,8 @@ import { addDays, endOfDay, isAfter, parseISO, startOfDay, subDays } from "date-
 import { ValidationError } from "@/lib/errors";
 
 export type AnalyticsPreset = "7d" | "30d" | "90d" | "ytd" | "custom";
+export type BookingTrendPeriod = "today" | "7d" | "30d" | "12m";
+export type OccupancyPeriod = "today" | "weekly" | "monthly" | "yearly";
 
 export type AnalyticsDateFilter = {
   preset: AnalyticsPreset;

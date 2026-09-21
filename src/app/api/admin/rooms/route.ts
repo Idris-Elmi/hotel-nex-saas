@@ -9,7 +9,7 @@ import { RoomTypeModel } from "@/models/RoomType";
 
 export async function GET(req: Request) {
   try {
-    authorize(req, ["ADMIN"]);
+    authorize(req, ["OWNER", "ADMIN"]);
     await connectDb();
 
     const rooms = await RoomModel.find().sort({ roomNumber: 1 }).lean();
@@ -37,7 +37,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    authorize(req, ["ADMIN"]);
+    authorize(req, ["OWNER", "ADMIN"]);
     await connectDb();
 
     const rawBody = await req.json();

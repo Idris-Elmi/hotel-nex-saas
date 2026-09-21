@@ -39,3 +39,21 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+
+
+# Cursor personal configuration
+.cursor/
+
+# Project documentation not tracked in Git
+docs/
+DATABASE_SCHEMA (2).md
+PROJECT_DOCUMENTATION (3).md
+SYSTEM_ARCHITECTURE (1).md
+
+# Local development logs
+*.log
+
+# Runtime uploads that should not be pushed
+/public/uploads/ids/
+/public/uploads/payments/

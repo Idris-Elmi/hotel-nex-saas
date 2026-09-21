@@ -1,15 +1,15 @@
-import { AuthForm } from "@/components/auth/AuthForm";
+import { CustomerSignInForm } from "@/components/auth/CustomerSignInForm";
 
-type SearchParams = Promise<{ redirectTo?: string }>;
+type SearchParams = Promise<{ redirectTo?: string; from?: string }>;
 
 export default async function CustomerSignInPage({ searchParams }: { searchParams: SearchParams }) {
   const search = await searchParams;
 
   return (
-    <main className="mx-auto max-w-xl px-6 py-10">
-      <h1 className="mb-3 text-3xl font-black text-slate-900">Customer Sign In</h1>
-      <p className="mb-6 text-slate-600">Sign in with your customer account to access bookings and profile.</p>
-      <AuthForm mode="login" redirectTo={search.redirectTo} customerOnly />
+    <main className="flex min-h-screen items-center justify-center bg-linear-to-b from-[#EFF4F8] to-[#E2EAF2] px-4 py-10">
+      <div className="w-[92vw] min-[480px]:w-[400px] sm:w-[420px] rounded-2xl bg-white px-5 py-7 shadow-xl shadow-slate-200/60 sm:px-8 sm:py-10">
+        <CustomerSignInForm redirectTo={search.redirectTo} from={search.from} />
+      </div>
     </main>
   );
 }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-type AllowedRole = "ADMIN" | "RECEPTIONIST" | "CUSTOMER";
+type AllowedRole = "OWNER" | "ADMIN" | "RECEPTIONIST" | "CUSTOMER";
 
 type AuthMeResponse = {
   user?: {
@@ -33,7 +33,10 @@ export function RoleGate({
     const loginPath = `${loginRoute}?redirectTo=${encodeURIComponent(currentPath)}`;
 
     async function run() {
-      const token = localStorage.getItem("hotel_saas_token")?.trim() ?? "";
+      const staffToken = sessionStorage.getItem("hotel_saas_token_staff")?.trim() ?? "";
+      const customerToken = localStorage.getItem("hotel_saas_token")?.trim() ?? "";
+      const token = staffToken || customerToken;
+      const isStaffToken = Boolean(staffToken);
       if (!token) {
         router.replace(loginPath);
         return;
@@ -50,7 +53,12 @@ export function RoleGate({
       }
 
       if (!response.ok) {
-        localStorage.removeItem("hotel_saas_token");
+        if (isStaffToken && response.status === 401) {
+          sessionStorage.removeItem("hotel_saas_token_staff");
+          localStorage.removeItem("hotel_saas_token_staff");
+        } else if (!isStaffToken && response.status === 401) {
+          localStorage.removeItem("hotel_saas_token");
+        }
         router.replace(loginPath);
         return;
       }

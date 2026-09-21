@@ -1,4 +1,5 @@
 import { connectDb } from "@/lib/db/mongoose";
+import "@/models/RoomType";
 import { fail, ok } from "@/lib/http";
 import { availabilitySchema } from "@/lib/validation/booking";
 import { ValidationError } from "@/lib/errors";

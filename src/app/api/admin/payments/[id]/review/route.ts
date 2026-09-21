@@ -7,7 +7,7 @@ import { reviewManualPayment } from "@/modules/payments/services/payment.service
 
 export async function POST(req: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    authorize(req, ["ADMIN"]);
+    authorize(req, ["OWNER", "ADMIN"]);
     await connectDb();
 
     const { id } = await context.params;

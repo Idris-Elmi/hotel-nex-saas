@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { RoleGate } from "@/components/auth/RoleGate";
+import { triggerAnalyticsRefresh } from "@/lib/analyticsRefresh";
 
 type RoomType = {
   _id: string;
@@ -24,15 +25,15 @@ type Room = {
 
 const statuses = ["AVAILABLE", "RESERVED", "OCCUPIED", "MAINTENANCE"] as const;
 
-export default function AdminRoomsPage() {
+export default function AdminRoomsPage({ apiBase }: { apiBase?: string } = {}) {
   return (
-    <RoleGate allow={["ADMIN"]} loginRoute="/auth/staff-signin">
-      <AdminRoomsContent />
+    <RoleGate allow={["OWNER", "ADMIN"]} loginRoute="/auth/staff-signin">
+      <AdminRoomsContent apiBase={apiBase} />
     </RoleGate>
   );
 }
 
-function AdminRoomsContent() {
+function AdminRoomsContent({ apiBase = "/api/admin" }: { apiBase?: string }) {
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(false);
@@ -56,7 +57,7 @@ function AdminRoomsContent() {
     if (typeof window === "undefined") {
       return "";
     }
-    return localStorage.getItem("hotel_saas_token") ?? "";
+    return (sessionStorage.getItem("hotel_saas_token_staff") || "") ?? "";
   }
 
   function requireAuthHeader(): Record<string, string> {
@@ -127,8 +128,8 @@ function AdminRoomsContent() {
     try {
       const headers = authHeader;
       const [typesRes, roomsRes] = await Promise.all([
-        fetch("/api/admin/room-types", { headers, cache: "no-store" }),
-        fetch("/api/admin/rooms", { headers, cache: "no-store" }),
+        fetch(`${apiBase}/room-types`, { headers, cache: "no-store" }),
+        fetch(`${apiBase}/rooms`, { headers, cache: "no-store" }),
       ]);
 
       const typesData = await typesRes.json().catch(() => ({}));
@@ -155,7 +156,7 @@ function AdminRoomsContent() {
     e.preventDefault();
     const authHeader = requireAuthHeader();
 
-    const res = await fetch("/api/admin/room-types", {
+    const res = await fetch(`${apiBase}/room-types`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -191,7 +192,7 @@ function AdminRoomsContent() {
       return;
     }
 
-    const res = await fetch("/api/admin/rooms", {
+    const res = await fetch(`${apiBase}/rooms`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -243,6 +244,7 @@ function AdminRoomsContent() {
     setNewRoomImageFiles([]);
     showToast("success", "Created successfully");
     await fetchAll();
+    triggerAnalyticsRefresh();
   }
 
   async function replaceRoomImages(roomId: string) {
@@ -259,7 +261,7 @@ function AdminRoomsContent() {
 
     try {
       const imageUrls = await uploadRoomImages(files);
-      const res = await fetch(`/api/admin/rooms/${roomId}`, {
+      const res = await fetch(`${apiBase}/rooms/${roomId}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -287,7 +289,7 @@ function AdminRoomsContent() {
   async function updateRoomStatus(roomId: string, status: Room["status"]) {
     const authHeader = requireAuthHeader();
 
-    const res = await fetch(`/api/admin/rooms/${roomId}`, {
+    const res = await fetch(`${apiBase}/rooms/${roomId}`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
@@ -307,12 +309,13 @@ function AdminRoomsContent() {
     }
 
     await fetchAll();
+    triggerAnalyticsRefresh();
   }
 
   async function deleteRoom(roomId: string) {
     const authHeader = requireAuthHeader();
 
-    const res = await fetch(`/api/admin/rooms/${roomId}`, {
+    const res = await fetch(`${apiBase}/rooms/${roomId}`, {
       method: "DELETE",
       headers: authHeader,
     });
@@ -328,6 +331,7 @@ function AdminRoomsContent() {
     }
 
     await fetchAll();
+    triggerAnalyticsRefresh();
   }
 
   useEffect(() => {
@@ -335,8 +339,13 @@ function AdminRoomsContent() {
       void fetchAll();
     }, 0);
 
+    const interval = window.setInterval(() => {
+      void fetchAll();
+    }, 10000);
+
     return () => {
       window.clearTimeout(timer);
+      window.clearInterval(interval);
       if (toastTimerRef.current) {
         clearTimeout(toastTimerRef.current);
       }
@@ -346,39 +355,38 @@ function AdminRoomsContent() {
   }, []);
 
   return (
-    <main className="mx-auto max-w-6xl px-6 py-10">
-      <h1 className="mb-3 text-3xl font-black text-slate-900">Room Management</h1>
-      <p className="mb-6 text-slate-600">Manage Room Types and Rooms used by booking and reception status workflows.</p>
+    <main className="p-6 lg:p-8 space-y-8 bg-[#F0F4FF] dark:bg-[#070B1A] min-h-screen">
+      <h1 className="text-2xl font-serif font-bold text-slate-900 dark:text-slate-100">Room Management</h1>
 
-      {error ? <p className="mb-4 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
+      {error ? <p className="mb-4 rounded-xl bg-red-50 dark:bg-red-900/20 px-3 py-2 text-sm text-red-700 dark:text-red-400">{error}</p> : null}
       {toast ? (
         <div
           className={`mb-4 rounded-xl px-3 py-2 text-sm ${
             toast.type === "success"
-              ? "border border-emerald-200 bg-emerald-50 text-emerald-800"
-              : "border border-amber-200 bg-amber-50 text-amber-800"
+              ? "border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-400"
+              : "border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-400"
           }`}
         >
           {toast.message}
         </div>
       ) : null}
-      {loading ? <p className="mb-4 text-sm text-slate-500">Loading...</p> : null}
+      {loading ? <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">Loading...</p> : null}
 
       <div className="mb-6">
-        <button className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white" onClick={fetchAll}>
+        <button className="rounded-xl bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-sm font-semibold text-white transition-all duration-200" onClick={fetchAll}>
           Refresh Room Data
         </button>
       </div>
 
       <section className="mb-8 grid gap-6 md:grid-cols-2">
-        <form onSubmit={createRoomType} className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-xl font-bold text-slate-900">Create Room Type</h2>
-          <input className="rounded-lg border border-slate-300 px-3 py-2" placeholder="Type name" value={newType.name} onChange={(e) => setNewType((v) => ({ ...v, name: e.target.value }))} required />
-          <input className="rounded-lg border border-slate-300 px-3 py-2" placeholder="Code (e.g. DELUXE)" value={newType.code} onChange={(e) => setNewType((v) => ({ ...v, code: e.target.value }))} required />
-          <label className="grid gap-1 text-sm font-semibold text-slate-700">
-            Breakfast Add-on Price (USD)
+        <form onSubmit={createRoomType} className="grid gap-3 bg-white dark:bg-[#0F1629] border border-slate-200 dark:border-[#1E2D4A] rounded-2xl p-5 shadow-sm">
+          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Create Room Type</h2>
+          <input className="rounded-xl border border-[#E0E7FF] dark:border-[#1E2D4A] bg-[#F1F5FF] dark:bg-[#1A2540] px-3 py-2 text-sm text-[#0D1340] dark:text-[#EEF2FF] placeholder:text-[#8892B8]" placeholder="Type name" value={newType.name} onChange={(e) => setNewType((v) => ({ ...v, name: e.target.value }))} required />
+          <input className="rounded-xl border border-[#E0E7FF] dark:border-[#1E2D4A] bg-[#F1F5FF] dark:bg-[#1A2540] px-3 py-2 text-sm text-[#0D1340] dark:text-[#EEF2FF] placeholder:text-[#8892B8]" placeholder="Code (e.g. DELUXE)" value={newType.code} onChange={(e) => setNewType((v) => ({ ...v, code: e.target.value }))} required />
+          <label className="grid gap-1 text-sm font-semibold text-[#4B5580] dark:text-[#8892C8]">
+            Breakfast Add-on Price (ETB)
             <input
-              className="rounded-lg border border-slate-300 px-3 py-2"
+              className="rounded-xl border border-[#E0E7FF] dark:border-[#1E2D4A] bg-[#F1F5FF] dark:bg-[#1A2540] px-3 py-2 text-sm text-[#0D1340] dark:text-[#EEF2FF] placeholder:text-[#8892B8]"
               type="number"
               min={0}
               step="1"
@@ -387,24 +395,24 @@ function AdminRoomsContent() {
               onChange={(e) => setNewType((v) => ({ ...v, breakfastAddonPrice: Number(e.target.value) }))}
               required
             />
-            <span className="text-xs font-normal text-slate-500">Extra cost added when guest selects bed & breakfast.</span>
+            <span className="text-xs font-normal text-slate-500 dark:text-slate-400">Extra cost added when guest selects bed & breakfast.</span>
           </label>
-          <button className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white" type="submit">Create Type</button>
+          <button className="rounded-xl bg-indigo-600 hover:bg-indigo-700 px-3 py-2 text-sm font-semibold text-white transition-all duration-200" type="submit">Create Type</button>
         </form>
 
-        <form onSubmit={createRoom} className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-xl font-bold text-slate-900">Create Room</h2>
-          <input className="rounded-lg border border-slate-300 px-3 py-2" placeholder="Room number" value={newRoom.roomNumber} onChange={(e) => setNewRoom((v) => ({ ...v, roomNumber: e.target.value }))} required />
-          <select className="rounded-lg border border-slate-300 px-3 py-2" value={newRoom.type} onChange={(e) => setNewRoom((v) => ({ ...v, type: e.target.value }))} required>
+        <form onSubmit={createRoom} className="grid gap-3 bg-white dark:bg-[#0F1629] border border-slate-200 dark:border-[#1E2D4A] rounded-2xl p-5 shadow-sm">
+          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Create Room</h2>
+          <input className="rounded-xl border border-[#E0E7FF] dark:border-[#1E2D4A] bg-[#F1F5FF] dark:bg-[#1A2540] px-3 py-2 text-sm text-[#0D1340] dark:text-[#EEF2FF] placeholder:text-[#8892B8]" placeholder="Room number" value={newRoom.roomNumber} onChange={(e) => setNewRoom((v) => ({ ...v, roomNumber: e.target.value }))} required />
+          <select className="rounded-xl border border-[#E0E7FF] dark:border-[#1E2D4A] bg-[#F1F5FF] dark:bg-[#1A2540] px-3 py-2 text-sm text-[#0D1340] dark:text-[#EEF2FF] placeholder:text-[#8892B8]" value={newRoom.type} onChange={(e) => setNewRoom((v) => ({ ...v, type: e.target.value }))} required>
             <option value="">Select room type</option>
             {roomTypes.map((type) => (
               <option key={type._id} value={type._id}>{type.name} ({type.code})</option>
             ))}
           </select>
-          <label className="grid gap-1 text-sm font-semibold text-slate-700">
-            Price Per Night (USD)
+          <label className="grid gap-1 text-sm font-semibold text-[#4B5580] dark:text-[#8892C8]">
+            Price Per Night (ETB)
             <input
-              className="rounded-lg border border-slate-300 px-3 py-2"
+              className="rounded-xl border border-[#E0E7FF] dark:border-[#1E2D4A] bg-[#F1F5FF] dark:bg-[#1A2540] px-3 py-2 text-sm text-[#0D1340] dark:text-[#EEF2FF] placeholder:text-[#8892B8]"
               type="number"
               min={0}
               step="1"
@@ -414,10 +422,10 @@ function AdminRoomsContent() {
               required
             />
           </label>
-          <label className="grid gap-1 text-sm font-semibold text-slate-700">
+          <label className="grid gap-1 text-sm font-semibold text-[#4B5580] dark:text-[#8892C8]">
             Capacity (Number of Guests)
             <input
-              className="rounded-lg border border-slate-300 px-3 py-2"
+              className="rounded-xl border border-[#E0E7FF] dark:border-[#1E2D4A] bg-[#F1F5FF] dark:bg-[#1A2540] px-3 py-2 text-sm text-[#0D1340] dark:text-[#EEF2FF] placeholder:text-[#8892B8]"
               type="number"
               min={1}
               step="1"
@@ -427,35 +435,35 @@ function AdminRoomsContent() {
               required
             />
           </label>
-          <label className="grid gap-1 text-sm font-semibold text-slate-700">
+          <label className="grid gap-1 text-sm font-semibold text-[#4B5580] dark:text-[#8892C8]">
             Room Images (multiple)
             <input
-              className="rounded-lg border border-slate-300 px-3 py-2"
+              className="rounded-xl border border-[#E0E7FF] dark:border-[#1E2D4A] bg-[#F1F5FF] dark:bg-[#1A2540] px-3 py-2 text-sm text-[#0D1340] dark:text-[#EEF2FF] placeholder:text-[#8892B8]"
               type="file"
               accept="image/jpeg,image/png"
               multiple
               onChange={(e) => setNewRoomImageFiles(Array.from(e.target.files ?? []))}
             />
           </label>
-          {newRoomImageFiles.length > 0 ? <p className="text-xs text-slate-500">{newRoomImageFiles.length} image(s) selected.</p> : null}
-          <button className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white" type="submit">Create Room</button>
+          {newRoomImageFiles.length > 0 ? <p className="text-xs text-slate-500 dark:text-slate-400">{newRoomImageFiles.length} image(s) selected.</p> : null}
+          <button className="rounded-xl bg-indigo-600 hover:bg-indigo-700 px-3 py-2 text-sm font-semibold text-white transition-all duration-200" type="submit">Create Room</button>
         </form>
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="mb-4 text-xl font-bold text-slate-900">Rooms</h2>
+      <section className="bg-white dark:bg-[#0F1629] border border-slate-200 dark:border-[#1E2D4A] rounded-2xl p-5 shadow-sm">
+        <h2 className="mb-4 text-xl font-bold text-slate-900 dark:text-slate-100">Rooms</h2>
         <div className="grid gap-3">
           {rooms.map((room) => (
-            <article key={room._id} className="grid gap-2 rounded-xl border border-slate-200 p-4 md:grid-cols-[1fr_auto_auto] md:items-center">
+            <article key={room._id} className="grid gap-2 md:grid-cols-[1fr_auto_auto] md:items-center bg-white dark:bg-[#0F1629] border border-slate-200 dark:border-[#1E2D4A] rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200">
               <div>
                 {room.images?.[0] ? (
                   <img
                     src={room.images[0]}
                     alt={`Room ${room.roomNumber} preview`}
-                    className="mb-2 h-28 w-full rounded-lg border border-slate-200 object-cover md:max-w-xs"
+                    className="mb-2 h-28 w-full rounded-lg border border-slate-200 dark:border-[#1E2D4A] object-cover md:max-w-xs"
                   />
                 ) : (
-                  <div className="mb-2 flex h-28 w-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500 md:max-w-xs">
+                  <div className="mb-2 flex h-28 w-full items-center justify-center rounded-lg border border-dashed border-slate-300 dark:border-[#252D47] bg-slate-50 dark:bg-[#141E35] text-xs text-slate-500 dark:text-slate-400 md:max-w-xs">
                     No image uploaded
                   </div>
                 )}
@@ -466,23 +474,23 @@ function AdminRoomsContent() {
                         key={`${room._id}-${imageUrl}`}
                         src={imageUrl}
                         alt={`Room ${room.roomNumber} thumbnail`}
-                        className="h-12 w-12 rounded border border-slate-200 object-cover"
+                        className="h-12 w-12 rounded border border-slate-200 dark:border-[#1E2D4A] object-cover"
                       />
                     ))}
                   </div>
                 ) : null}
-                <p className="font-semibold text-slate-900">Room {room.roomNumber} - {room.type?.name ?? "Type"}</p>
-                <p className="text-sm text-slate-600">{room.type?.code ?? ""} | ${room.pricePerNight}/night | Capacity {room.capacity}</p>
+                <p className="font-semibold text-slate-900 dark:text-slate-100">Room {room.roomNumber} - {room.type?.name ?? "Type"}</p>
+                <p className="text-sm text-slate-600 dark:text-slate-400">{room.type?.code ?? ""} | ETB {room.pricePerNight}/night | Capacity {room.capacity}</p>
                 <div className="mt-2 grid gap-2 md:max-w-sm">
                   <input
-                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    className="rounded-xl border border-[#E0E7FF] dark:border-[#1E2D4A] bg-[#F1F5FF] dark:bg-[#1A2540] px-3 py-2 text-sm text-[#0D1340] dark:text-[#EEF2FF] placeholder:text-[#8892B8]"
                     type="file"
                     accept="image/jpeg,image/png"
                     multiple
                     onChange={(e) => setReplacementImageFiles((previous) => ({ ...previous, [room._id]: Array.from(e.target.files ?? []) }))}
                   />
                   <button
-                    className="w-fit rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-800"
+                    className="w-fit rounded-xl border border-[#E0E7FF] dark:border-[#1E2D4A] px-3 py-2 text-xs font-semibold text-[#4B5580] dark:text-[#8892C8] hover:bg-[#F8FAFF] dark:hover:bg-[#141E35] transition-all duration-200"
                     type="button"
                     onClick={() => replaceRoomImages(room._id)}
                     disabled={replacingImagesForRoomId === room._id}
@@ -491,12 +499,12 @@ function AdminRoomsContent() {
                   </button>
                 </div>
               </div>
-              <select className="rounded-lg border border-slate-300 px-2 py-1" value={room.status} onChange={(e) => updateRoomStatus(room._id, e.target.value as Room["status"])}>
+              <select className="rounded-xl border border-[#E0E7FF] dark:border-[#1E2D4A] bg-[#F1F5FF] dark:bg-[#1A2540] px-2 py-1 text-sm text-[#0D1340] dark:text-[#EEF2FF]" value={room.status} onChange={(e) => updateRoomStatus(room._id, e.target.value as Room["status"])}>
                 {statuses.map((status) => (
                   <option key={status} value={status}>{status}</option>
                 ))}
               </select>
-              <button className="rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white" onClick={() => deleteRoom(room._id)}>
+              <button className="rounded-xl bg-rose-500 hover:bg-rose-600 px-3 py-2 text-sm font-semibold text-white transition-all duration-200" onClick={() => deleteRoom(room._id)}>
                 Delete
               </button>
             </article>

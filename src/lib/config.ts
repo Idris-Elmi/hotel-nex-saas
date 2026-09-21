@@ -4,7 +4,7 @@ export const appConfig = {
   mongoUri: process.env.MONGODB_URI ?? "mongodb://127.0.0.1:27017/hotel_saas",
   mongoDbName: process.env.MONGODB_DB_NAME ?? "",
   uploadDir: process.env.UPLOAD_DIR ?? "public/uploads/ids",
-  baseCurrency: process.env.BASE_CURRENCY ?? "USD",
+  baseCurrency: process.env.BASE_CURRENCY ?? "ETB",
 };
 
 export function requireConfig(key: keyof typeof appConfig): string {

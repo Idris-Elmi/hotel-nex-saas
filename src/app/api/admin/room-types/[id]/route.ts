@@ -7,7 +7,7 @@ import { RoomTypeModel } from "@/models/RoomType";
 
 export async function PATCH(req: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    authorize(req, ["ADMIN"]);
+    authorize(req, ["OWNER", "ADMIN"]);
     await connectDb();
 
     const { id } = await context.params;
@@ -26,7 +26,7 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
 
 export async function DELETE(req: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    authorize(req, ["ADMIN"]);
+    authorize(req, ["OWNER", "ADMIN"]);
     await connectDb();
     const { id } = await context.params;
     await RoomTypeModel.findByIdAndDelete(id);

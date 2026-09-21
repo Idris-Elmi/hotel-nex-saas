@@ -29,7 +29,7 @@ export function ConfirmationActions({ bookingId }: { bookingId: string }) {
       <a
         href={`/customer/dashboard?bookingId=${encodeURIComponent(bookingId)}`}
         onClick={clearContinuePaymentSession}
-        className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-100"
+        className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-100 dark:border-[#2a3a52] dark:bg-[#243044] dark:text-white dark:hover:bg-[#2a3a52]"
       >
         Go to My Bookings
       </a>
@@ -37,7 +37,7 @@ export function ConfirmationActions({ bookingId }: { bookingId: string }) {
         type="button"
         onClick={signOutAndSignInAgain}
         disabled={busy}
-        className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+        className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 dark:bg-[#243044] dark:hover:bg-[#2a3a52]"
       >
         {busy ? "Signing out..." : "Sign out and sign in again"}
       </button>

@@ -1,20 +1,31 @@
 import { authorize } from "@/lib/auth/rbac";
 import { connectDb } from "@/lib/db/mongoose";
 import { fail, ok } from "@/lib/http";
+import { NotFoundError, ValidationError } from "@/lib/errors";
 import mongoose from "mongoose";
 import { BookingModel } from "@/models/Booking";
 import { RoomModel } from "@/models/Room";
 import { UserModel } from "@/models/User";
 import { createBookingSchema } from "@/lib/validation/booking";
-import { ValidationError } from "@/lib/errors";
 import { createPendingBooking } from "@/modules/bookings/services/booking.service";
 
 export async function GET(req: Request) {
   try {
-    authorize(req, ["ADMIN", "RECEPTIONIST"]);
+    authorize(req, ["OWNER", "ADMIN"]);
     await connectDb();
 
-    const bookings = await BookingModel.find().sort({ createdAt: -1 }).limit(150).lean();
+    const { searchParams } = new URL(req.url);
+    const q = searchParams.get("q")?.trim();
+    const filter: Record<string, unknown> = {};
+    if (q) {
+      filter.$or = [
+        { bookingRef: { $regex: q, $options: "i" } },
+        { "guestSnapshot.fullName": { $regex: q, $options: "i" } },
+        { "guestSnapshot.email": { $regex: q, $options: "i" } },
+      ];
+    }
+
+    const bookings = await BookingModel.find(filter).sort({ createdAt: -1 }).limit(150).lean();
     const roomIds = Array.from(
       new Set(
         bookings
@@ -75,7 +86,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    authorize(req, ["ADMIN", "RECEPTIONIST"]);
+    authorize(req, ["OWNER", "ADMIN"]);
     await connectDb();
 
     const parsed = createBookingSchema.safeParse(await req.json());
@@ -83,9 +94,23 @@ export async function POST(req: Request) {
       throw new ValidationError("Invalid booking payload", parsed.error.flatten());
     }
 
+    let room;
+    if (parsed.data.roomId && mongoose.isValidObjectId(parsed.data.roomId)) {
+      room = await RoomModel.findById(parsed.data.roomId);
+    }
+    if (!room) {
+      const roomNumber = parsed.data.roomNumber ?? (parsed.data.roomId && !mongoose.isValidObjectId(parsed.data.roomId) ? parsed.data.roomId : undefined);
+      if (roomNumber) {
+        room = await RoomModel.findOne({ roomNumber });
+      }
+    }
+    if (!room) {
+      throw new NotFoundError(`Room not found`);
+    }
+
     const booking = await createPendingBooking({
       userId: parsed.data.userId,
-      roomId: parsed.data.roomId,
+      roomId: String(room._id),
       arrivalDate: new Date(parsed.data.arrivalDate),
       nights: parsed.data.nights,
       guests: parsed.data.guests,

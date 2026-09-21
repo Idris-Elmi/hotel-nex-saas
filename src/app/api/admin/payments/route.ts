@@ -7,7 +7,7 @@ import { listManualPayments } from "@/modules/payments/services/payment.service"
 
 export async function GET(req: Request) {
   try {
-    authorize(req, ["ADMIN"]);
+    authorize(req, ["OWNER", "ADMIN"]);
     await connectDb();
 
     const { searchParams } = new URL(req.url);

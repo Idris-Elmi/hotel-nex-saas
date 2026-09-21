@@ -63,7 +63,7 @@ export default async function RoomDetailsPage({ params }: Props) {
           <article className="rounded-2xl bg-slate-50 p-5">
             <h2 className="text-xl font-bold text-slate-900">Bed Only</h2>
             <p className="mt-2 text-sm text-slate-600">Flexible stay package.</p>
-            <p className="mt-4 text-2xl font-black text-slate-900">${bedOnly.toFixed(2)}</p>
+            <p className="mt-4 text-2xl font-black text-slate-900">ETB {bedOnly.toFixed(2)}</p>
             <Link
               href="/booking/detail"
               className="mt-4 inline-block rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
@@ -75,7 +75,7 @@ export default async function RoomDetailsPage({ params }: Props) {
           <article className="rounded-2xl bg-amber-50 p-5">
             <h2 className="text-xl font-bold text-slate-900">Bed and Breakfast</h2>
             <p className="mt-2 text-sm text-slate-600">Breakfast included package.</p>
-            <p className="mt-4 text-2xl font-black text-slate-900">${bedBreakfast.toFixed(2)}</p>
+            <p className="mt-4 text-2xl font-black text-slate-900">ETB {bedBreakfast.toFixed(2)}</p>
             <Link
               href="/booking/detail"
               className="mt-4 inline-block rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white"

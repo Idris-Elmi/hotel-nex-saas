@@ -39,6 +39,7 @@ export function AuthForm({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("RECEPTIONIST");
+  const [phone, setPhone] = useState("");
   const [passportDocumentUrl, setPassportDocumentUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -58,20 +59,30 @@ export function AuthForm({
     const endpoint = mode === "register" ? "/api/auth/register" : "/api/auth/login";
     const payload =
       mode === "register"
-        ? { name, email, password, role, passportDocumentUrl }
+        ? { name, email, password, role, phone, passportDocumentUrl }
         : { email, password };
 
     const res = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
+      credentials: "include",
     });
 
     const data = await res.json();
     setLoading(false);
 
     if (!res.ok) {
-      setError(data.message ?? "Authentication failed");
+      const details = data?.details;
+      if (details?.fieldErrors) {
+        const msgs: string[] = [];
+        for (const [field, errors] of Object.entries(details.fieldErrors as Record<string, string[]>)) {
+          msgs.push(`${field}: ${errors.join(", ")}`);
+        }
+        setError(msgs.join(" | "));
+      } else {
+        setError(data.message ?? "Authentication failed");
+      }
       return;
     }
 
@@ -82,21 +93,32 @@ export function AuthForm({
     }
 
     if (data.accessToken) {
-      localStorage.setItem("hotel_saas_token", data.accessToken);
+      if (staffOnly) {
+        sessionStorage.setItem("hotel_saas_token_staff", data.accessToken);
+        localStorage.setItem("hotel_saas_token_staff", data.accessToken);
+      } else {
+        localStorage.setItem("hotel_saas_token", data.accessToken);
+      }
     }
 
     if (customerOnly) {
-      router.replace("/customer/dashboard");
+      router.replace(safeRedirect ?? "/customer/dashboard");
       return;
     }
 
-    if (staffOnly && userRole !== "ADMIN" && userRole !== "RECEPTIONIST") {
+    if (staffOnly && userRole !== "OWNER" && userRole !== "ADMIN" && userRole !== "RECEPTIONIST") {
       setError("Only staff accounts are allowed for this sign-in.");
       return;
     }
 
+    if (userRole === "OWNER") {
+      const ownerRedirect = staffOnly && !safeRedirect?.startsWith("/owner") ? "/owner/analytics" : (safeRedirect ?? "/owner/analytics");
+      router.push(ownerRedirect);
+      return;
+    }
+
     if (userRole === "ADMIN") {
-      const adminRedirect = staffOnly && !safeRedirect?.startsWith("/admin") ? "/admin/dashboard" : (safeRedirect ?? "/admin/dashboard");
+      const adminRedirect = staffOnly && !safeRedirect?.startsWith("/admin") ? "/admin/analytics" : (safeRedirect ?? "/admin/analytics");
       router.push(adminRedirect);
       return;
     }
@@ -126,9 +148,15 @@ export function AuthForm({
           <label className="grid gap-2 text-sm font-semibold text-slate-700">
             Role
             <select className="rounded-xl border border-slate-300 px-3 py-2" value={role} onChange={(e) => setRole(e.target.value)}>
-              <option value="RECEPTIONIST">RECEPTIONIST</option>
+              <option value="OWNER">OWNER</option>
               <option value="ADMIN">ADMIN</option>
+              <option value="RECEPTIONIST">RECEPTIONIST</option>
             </select>
+          </label>
+
+          <label className="grid gap-2 text-sm font-semibold text-slate-700">
+            Phone
+            <input className="rounded-xl border border-slate-300 px-3 py-2" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1234567890" />
           </label>
 
           <label className="grid gap-2 text-sm font-semibold text-slate-700">
@@ -138,7 +166,6 @@ export function AuthForm({
               value={passportDocumentUrl}
               onChange={(e) => setPassportDocumentUrl(e.target.value)}
               placeholder="/uploads/ids/file.jpg"
-              required
             />
           </label>
         </>
@@ -152,6 +179,9 @@ export function AuthForm({
       <label className="grid gap-2 text-sm font-semibold text-slate-700">
         Password
         <input className="rounded-xl border border-slate-300 px-3 py-2" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+        {mode === "register" ? (
+          <span className="text-xs text-slate-400 font-normal">Must be 8+ characters with uppercase, lowercase, number, and symbol</span>
+        ) : null}
       </label>
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}

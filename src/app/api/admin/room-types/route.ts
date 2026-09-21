@@ -7,7 +7,7 @@ import { RoomTypeModel } from "@/models/RoomType";
 
 export async function GET(req: Request) {
   try {
-    authorize(req, ["ADMIN"]);
+    authorize(req, ["OWNER", "ADMIN"]);
     await connectDb();
     const types = await RoomTypeModel.find().sort({ name: 1 }).lean();
     return ok({ types });
@@ -18,7 +18,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    authorize(req, ["ADMIN"]);
+    authorize(req, ["OWNER", "ADMIN"]);
     await connectDb();
 
     const parsed = createRoomTypeSchema.safeParse(await req.json());

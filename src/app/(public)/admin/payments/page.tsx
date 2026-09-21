@@ -32,20 +32,20 @@ type AdminPayment = {
   } | null;
 };
 
-export default function AdminPaymentsPage() {
+export default function AdminPaymentsPage({ apiBase }: { apiBase?: string } = {}) {
   return (
-    <RoleGate allow={["ADMIN"]} loginRoute="/auth/staff-signin">
-      <AdminPaymentsContent />
+    <RoleGate allow={["OWNER", "ADMIN"]} loginRoute="/auth/staff-signin">
+      <AdminPaymentsContent apiBase={apiBase} />
     </RoleGate>
   );
 }
 
-function AdminPaymentsContent() {
+function AdminPaymentsContent({ apiBase = "/api/admin" }: { apiBase?: string }) {
   function getToken() {
     if (typeof window === "undefined") {
       return "";
     }
-    return localStorage.getItem("hotel_saas_token") ?? "";
+    return (sessionStorage.getItem("hotel_saas_token_staff") || "") ?? "";
   }
 
   function requireAuthHeader() {
@@ -77,7 +77,7 @@ function AdminPaymentsContent() {
       params.set("status", statusFilter);
     }
 
-    const response = await fetch(`/api/admin/payments?${params.toString()}`, {
+    const response = await fetch(`${apiBase}/payments?${params.toString()}`, {
       headers: authHeader,
       cache: "no-store",
     });
@@ -104,7 +104,7 @@ function AdminPaymentsContent() {
       return;
     }
 
-    const response = await fetch(`/api/admin/payments/${paymentId}/review`, {
+    const response = await fetch(`${apiBase}/payments/${paymentId}/review`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -128,15 +128,15 @@ function AdminPaymentsContent() {
   }
 
   return (
-    <main className="mx-auto max-w-7xl px-6 py-10">
-      <h1 className="mb-2 text-3xl font-black text-slate-900">Manual Payments Admin</h1>
-      <p className="mb-6 text-slate-600">Review manual payment submissions and approve or reject booking payments.</p>
+    <main className="p-6 lg:p-8 space-y-8 bg-[#F0F4FF] dark:bg-[#070B1A] min-h-screen max-w-7xl mx-auto">
+      <h1 className="text-2xl font-serif font-bold text-slate-900 dark:text-slate-100 mb-6">Manual Payments Admin</h1>
 
-      <section className="mb-6 flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <label className="grid gap-1 text-sm font-semibold text-slate-700">
+
+      <section className="bg-white dark:bg-[#0F1629] border border-slate-200 dark:border-[#1E2D4A] rounded-2xl p-5 shadow-sm flex flex-wrap items-end gap-3">
+        <label className="grid gap-1 text-sm font-semibold text-slate-700 dark:text-slate-300">
           Status Filter
           <select
-            className="rounded-lg border border-slate-300 px-3 py-2"
+            className="rounded-xl border border-[#E0E7FF] dark:border-[#1E2D4A] bg-[#F1F5FF] dark:bg-[#1A2540] px-3 py-2 text-sm text-[#0D1340] dark:text-[#EEF2FF]"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as PaymentStatusFilter)}
           >
@@ -148,7 +148,7 @@ function AdminPaymentsContent() {
         </label>
 
         <button
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+          className="rounded-xl bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 transition-all duration-200"
           onClick={loadPayments}
           disabled={loading}
         >
@@ -156,40 +156,40 @@ function AdminPaymentsContent() {
         </button>
       </section>
 
-      {error ? <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
+      {error ? <p className="rounded-xl bg-red-50 dark:bg-red-900/20 px-3 py-2 text-sm text-red-700 dark:text-red-400">{error}</p> : null}
 
       <section className="grid gap-3">
         {payments.map((payment) => (
-          <article key={payment._id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="font-semibold text-slate-900">
-              Payment ID: {payment._id} | Status: {payment.status} | Method: {payment.method} | Amount: ${payment.amount.toFixed(2)}
+          <article key={payment._id} className="bg-white dark:bg-[#0F1629] border border-slate-200 dark:border-[#1E2D4A] rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200">
+            <p className="font-semibold text-slate-900 dark:text-slate-100">
+              Payment ID: {payment._id} | Status: {payment.status} | Method: {payment.method} | Amount: ETB {payment.amount.toFixed(2)}
             </p>
-            <p className="mt-1 text-sm text-slate-700">
+            <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">
               Booking ID: {payment.booking?.id ?? "N/A"} | Booking Ref: {payment.booking?.bookingRef ?? "N/A"} | Room ID: {payment.booking?.room.id ?? "N/A"} | Room Number: {payment.booking?.room.roomNumber ?? "N/A"}
             </p>
-            <p className="mt-1 text-sm text-slate-700">
+            <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">
               Guest: {payment.booking?.guest.fullName ?? "Unknown"} ({payment.booking?.guest.email ?? "N/A"}) | Phone: {payment.booking?.guest.phone ?? "N/A"}
             </p>
-            <p className="mt-1 text-sm text-slate-700">
+            <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">
               Stay: {payment.booking ? new Date(payment.booking.arrivalDate).toLocaleDateString() : "-"} to {payment.booking ? new Date(payment.booking.departureDate).toLocaleDateString() : "-"}
             </p>
-            {payment.transactionReference ? <p className="mt-1 text-sm text-slate-700">Transaction Ref: {payment.transactionReference}</p> : null}
+            {payment.transactionReference ? <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">Transaction Ref: {payment.transactionReference}</p> : null}
             {payment.receiptUrl ? (
-              <p className="mt-1 text-sm text-slate-700">
-                Receipt: <a className="text-blue-700 underline" href={payment.receiptUrl} target="_blank" rel="noreferrer">View receipt</a>
+              <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">
+                Receipt: <a className="text-indigo-600 dark:text-indigo-400 underline hover:text-indigo-800" href={payment.receiptUrl} target="_blank" rel="noreferrer">View receipt</a>
               </p>
             ) : null}
 
             {payment.status === "PENDING" ? (
               <div className="mt-3 flex flex-wrap gap-2">
                 <button
-                  className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white"
+                  className="rounded-xl bg-emerald-500 hover:bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition-all duration-200"
                   onClick={() => reviewPayment(payment._id, "approve")}
                 >
                   Approve Payment
                 </button>
                 <button
-                  className="rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white"
+                  className="rounded-xl bg-rose-500 hover:bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white transition-all duration-200"
                   onClick={() => reviewPayment(payment._id, "reject")}
                 >
                   Reject Payment
@@ -199,7 +199,7 @@ function AdminPaymentsContent() {
           </article>
         ))}
 
-        {!loading && payments.length === 0 ? <p className="text-sm text-slate-500">No payments found.</p> : null}
+        {!loading && payments.length === 0 ? <p className="text-sm text-slate-500 dark:text-slate-400">No payments found.</p> : null}
       </section>
     </main>
   );
